@@ -1,0 +1,134 @@
+// Prisma schema for HoldemAccount server
+// See EXPANSION_PLAN.md §5 for rationale.
+// NOTE: SQLite does not support native enums; we use String columns with
+// compile-time unions in server/src/types.ts to emulate them.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  passwordHash  String
+  mustChangePwd Boolean  @default(true)
+  displayName   String
+  disabled      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  memberships   Membership[]
+  refreshTokens RefreshToken[]
+}
+
+model Ledger {
+  id             String    @id @default(cuid())
+  serial         String    @unique // 8-char Crockford base32
+  title          String
+  chipValue      Float     @default(200)
+  chipMultiplier Float     @default(1)
+  status         String    @default("ACTIVE") // ACTIVE | ARCHIVED
+  createdById    String
+  createdAt      DateTime  @default(now())
+  archivedAt     DateTime?
+
+  memberships   Membership[]
+  players       Player[]
+  expenses      SharedExpense[]
+  buyInRequests BuyInRequest[]
+  events        LedgerEvent[]
+
+  @@index([status])
+}
+
+model Membership {
+  id       String   @id @default(cuid())
+  userId   String
+  ledgerId String
+  role     String   @default("PLAYER") // ADMIN | PLAYER
+  playerId String?  @unique
+  joinedAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger Ledger  @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id])
+
+  @@unique([userId, ledgerId])
+  @@index([ledgerId])
+}
+
+model Player {
+  id         String   @id @default(cuid())
+  ledgerId   String
+  nickname   String
+  buyInCount Int      @default(0)
+  chipAmount Float    @default(0)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  ledger        Ledger         @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  membership    Membership?
+  buyInRequests BuyInRequest[]
+
+  @@index([ledgerId])
+}
+
+model SharedExpense {
+  id        String   @id @default(cuid())
+  ledgerId  String
+  label     String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  ledger Ledger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerId])
+}
+
+model BuyInRequest {
+  id            String    @id @default(cuid())
+  ledgerId      String
+  playerId      String
+  requestedById String
+  hands         Int
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELED
+  decidedById   String?
+  decidedAt     DateTime?
+  note          String?
+  rejectReason  String?
+  createdAt     DateTime  @default(now())
+
+  ledger Ledger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerId, status])
+}
+
+model LedgerEvent {
+  id        String   @id @default(cuid())
+  ledgerId  String
+  type      String // BUY_IN_REQUESTED | BUY_IN_DECIDED | PLAYER_JOINED | EXPENSE_CHANGED | PLAYER_UPDATED | LEDGER_UPDATED | LEDGER_ARCHIVED
+  payload   String // JSON-encoded
+  createdAt DateTime @default(now())
+
+  ledger Ledger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerId, createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

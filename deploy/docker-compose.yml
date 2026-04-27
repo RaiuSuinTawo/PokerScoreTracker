@@ -1,0 +1,41 @@
+#
+# HoldemAccount · Docker Compose
+#
+# 用法（仓库根）：
+#   1. cp server/.env.example server/.env 并填写
+#   2. cd deploy && docker compose up -d --build
+#   3. 宿主机 Nginx 反代 443 → 127.0.0.1:3000
+#
+# 初始管理员 seed：
+#   docker compose exec holdem sh -c "node dist/../node_modules/.bin/tsx prisma/seed.ts"
+# 或在容器外直接调 HTTP 接口（如果你更喜欢免 seed 的 CLI 方式，挂 volume 后在宿主机跑 admin:create-user 即可）。
+#
+version: "3.9"
+
+services:
+  holdem:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: holdem-server:latest
+    restart: unless-stopped
+    env_file:
+      - ../server/.env
+    environment:
+      # docker compose 内 DB 路径固定
+      - DATABASE_URL=file:/app/server/data/holdem.db
+      - HOST=0.0.0.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - holdem-data:/app/server/data
+      # 挂备份目录，让宿主机的 cron 能读
+      - /backups/holdem:/backups:rw
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  holdem-data:

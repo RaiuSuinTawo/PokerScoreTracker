@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head -10 find G:/CCWorkSpace -maxdepth 5 -name *.md -path */.claude/*)",
+      "Bash(find G:/CCWorkSpace -maxdepth 6 -name *.md)",
+      "Bash(head -30 find G:/CCWorkSpace -maxdepth 6 -name p4* -o -name *perforce* -o -name *p4config*)",
+      "Bash(find G:/CCWorkSpace -maxdepth 6 -name p4*)",
+      "Bash(head -20 find G:/CCWorkSpace -maxdepth 6 -name *perforce*)",
+      "Bash(head -20 find G:/CCWorkSpace -maxdepth 6 -name *.p4ignore -o -name P4CONFIG -o -name .p4config)",
+      "Bash(npx degit:*)",
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(npm --version)",
+      "Bash(node:*)",
+      "Bash(npx prisma:*)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(curl -s http://localhost:3000/api/health -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'content-type: application/json' -d '{\"username\":\"alice\",\"password\":\"wrong\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/api/auth/me -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/logout -H 'content-type: application/json' -d '{\"refresh\":\"PMj8kCqtgGsFAsKfYTJC9PKzZKlhJBAjybfnrkAgyK0\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/refresh -H 'content-type: application/json' -d '{\"refresh\":\"PMj8kCqtgGsFAsKfYTJC9PKzZKlhJBAjybfnrkAgyK0\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'content-type: application/json' -d '{\"username\":\"alice\",\"password\":\"newer-password-99\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(VITE_API_BASE=http://localhost:3000/api npm run build:h5)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'content-type: application/json' -d '{\"username\":\"alice\",\"password\":\"newer-password-99\"}')",
+      "Bash(ls *.cjs)",
+      "Bash(chmod +x deploy/*.sh)",
+      "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/linux-setup.sh)",
+      "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/linux-update.sh)",
+      "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/backup-sqlite.sh)",
+      "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/build-mp-weixin.sh)",
+      "Bash(gh auth *)"
+    ]
+  }
+}

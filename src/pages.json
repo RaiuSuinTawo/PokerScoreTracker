@@ -1,0 +1,65 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/change-password/index",
+      "style": {
+        "navigationBarTitleText": "修改密码",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/ledger-list/index",
+      "style": {
+        "navigationBarTitleText": "我的账本",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": ""
+      }
+    },
+    {
+      "path": "pages/shared-expense/index",
+      "style": {
+        "navigationBarTitleText": "公摊开销",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/buy-in-requests/index",
+      "style": {
+        "navigationBarTitleText": "带入申请",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "德扑记账",
+    "navigationBarBackgroundColor": "#f5f5f5",
+    "backgroundColor": "#f5f5f5"
+  }
+}

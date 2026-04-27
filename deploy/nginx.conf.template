@@ -1,0 +1,65 @@
+############################################################
+# HoldemAccount Nginx site — 由 deploy/linux-setup.sh 渲染。
+# __DOMAIN__  → 实际域名
+# __H5_DIR__  → 客户端 H5 构建产物路径（例 /opt/holdem/dist/build/h5）
+# __SERVER_PORT__ → 后端监听端口（例 3000）
+#
+# 初始只监听 80；certbot --nginx 会在此基础上追加 443 server 块
+# 并把 80 重定向到 443。如果你人工运维，别把 443 块删掉。
+############################################################
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    # certbot 校验目录；certbot 会用到
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # 反代 API → 本机 Node 服务
+    location /api/ {
+        proxy_pass http://127.0.0.1:__SERVER_PORT__;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+
+        # 防止客户端误缓存 API
+        add_header Cache-Control "no-store" always;
+    }
+
+    # 健康检查直通
+    location = /api/health {
+        proxy_pass http://127.0.0.1:__SERVER_PORT__;
+        access_log off;
+    }
+
+    # H5 静态产物 + SPA history fallback
+    root __H5_DIR__;
+    index index.html;
+
+    # 带 hash 的静态资源长缓存
+    location ~* ^/(assets|static)/ {
+        expires 30d;
+        access_log off;
+        add_header Cache-Control "public, max-age=2592000, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA：所有未命中请求回落到 index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 安全头（基础版）
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options        "SAMEORIGIN" always;
+    add_header Referrer-Policy        "no-referrer-when-downgrade" always;
+
+    client_max_body_size 2m;
+}

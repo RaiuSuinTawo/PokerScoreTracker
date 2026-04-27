@@ -1,8 +1,3 @@
-# PokerScoreTracker
-
-A poker game scoring and statistics tracker for recording player scores and game results.
-
-=======
 # HoldemAccount · 德扑记账
 
 多用户协作的德州扑克记账工具：客户端（uni-app + Vue 3）+ 服务端（Node.js + Fastify + SQLite）。
@@ -209,4 +204,3 @@ npm run admin:disable-user   -- --username alice --enable   # 恢复
 - v2 候选：WebSocket 实时、离线写队列、管理员转让、微信一键登录、i18n、管理后台 Web
 
 详细设计：[EXPANSION_PLAN.md](./EXPANSION_PLAN.md)
->>>>>>> 1c01b38 (Initial Commit)

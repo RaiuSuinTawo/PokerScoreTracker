@@ -30,7 +30,18 @@
       "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/linux-update.sh)",
       "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/backup-sqlite.sh)",
       "Bash(bash -n /g/CCWorkSpace/Item-HoldemAccount/deploy/build-mp-weixin.sh)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(dir \"G:/CCWorkSpace/Item-HoldemAccount\")",
+      "Bash(npx tsx *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'content-type: application/json' --data-binary @/tmp/alice_login.json)",
+      "Bash(python -m json.tool)",
+      "Bash(python -c ' *)",
+      "Bash(VITE_API_BASE=\"http://localhost:3000/api\" npx uni build)",
+      "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/linux-setup.sh)",
+      "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/linux-update.sh)",
+      "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/backup-sqlite.sh)",
+      "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/build-mp-weixin.sh)",
+      "Bash(xargs kill *)"
     ]
   }
 }

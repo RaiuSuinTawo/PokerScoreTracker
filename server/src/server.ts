@@ -17,13 +17,6 @@ import { eventRoutes } from './routes/events.js'
 import { settlementRoutes } from './routes/settlement.js'
 import { buyInRequestRoutes } from './routes/buyInRequests.js'
 import { profileRoutes } from './routes/profile.js'
-import { profileRoutes } from './routes/profile.js'
-import { buyInRequestRoutes } from './routes/buyInRequests.js'
-import { playerRoutes } from './routes/players.js'
-import { expenseRoutes } from './routes/expenses.js'
-import { eventRoutes } from './routes/events.js'
-import { settlementRoutes } from './routes/settlement.js'
-import { ledgerRoutes } from './routes/ledgers.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const HOST = process.env.HOST ?? '0.0.0.0'

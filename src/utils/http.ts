@@ -111,7 +111,7 @@ function doTransport(opts: TransportOpts): Promise<TransportResult> {
     return new Promise<TransportResult>((resolve, reject) => {
       ;(wx as any).cloud.callContainer({
         config: { env: CLOUD_ENV },
-        path: opts.path,
+        path: `/api${opts.path}`,
         method: opts.method,
         header: {
           'X-WX-SERVICE': CLOUD_SERVICE,

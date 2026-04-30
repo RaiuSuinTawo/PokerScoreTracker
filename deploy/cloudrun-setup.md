@@ -82,7 +82,7 @@
 1. 在服务页面 → 「**部署**」→ 「**代码来源**」→ 选择 **Git 仓库**
 2. 授权你的 GitHub / Gitee 仓库
 3. 选择分支（通常是 `main`）
-4. Dockerfile 路径填：`deploy/Dockerfile`
+4. Dockerfile 路径填：`Dockerfile`（仓库根目录下）
 5. 构建目录填：`.`（仓库根目录）
 6. 点击「**部署**」
 
@@ -94,7 +94,7 @@
 
 ```bash
 # 在项目根目录
-docker build -f deploy/Dockerfile -t holdem-server .
+docker build -t holdem-server .
 # 然后在云托管控制台选择"镜像上传"方式
 ```
 

@@ -9,6 +9,9 @@
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
+# 安装 OpenSSL（Prisma 需要）
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # 依赖层（利用 layer cache）
 COPY server/package.json server/package-lock.json* ./server/
 WORKDIR /app/server
@@ -24,14 +27,18 @@ FROM node:20-bookworm-slim AS runner
 WORKDIR /app/server
 ENV NODE_ENV=production
 
+# 安装 OpenSSL（Prisma 运行时连接 MySQL 需要）
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # 只拷 runtime 必需
 COPY --from=builder /app/server/node_modules /app/server/node_modules
 COPY --from=builder /app/server/dist /app/server/dist
 COPY --from=builder /app/server/prisma /app/server/prisma
 COPY --from=builder /app/server/package.json /app/server/package.json
 
+# 云托管默认监听 80
+ENV PORT=80
 EXPOSE 80
 
 # 每次启动都 prisma migrate deploy（幂等），然后启服务
-# PORT 由云托管平台注入（默认 80），也可通过 .env 覆盖
 CMD sh -c "npx prisma migrate deploy && node dist/server.js"

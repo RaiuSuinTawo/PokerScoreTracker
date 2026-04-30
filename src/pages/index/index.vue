@@ -361,10 +361,10 @@ async function doDeleteLedger() {
       </view>
       <view class="meta-right">
         <button class="icon-btn" size="mini" @click="goBack">返回</button>
-        <button class="icon-btn" size="mini" @click="goToBuyInRequests">
-          申请
-          <text v-if="store.pendingCount > 0" class="badge">{{ store.pendingCount }}</text>
-        </button>
+        <view class="icon-btn-wrap" @click="goToBuyInRequests">
+          <button class="icon-btn" size="mini">申请</button>
+          <text v-if="store.pendingCount > 0" class="badge-dot">{{ store.pendingCount }}</text>
+        </view>
         <button
           v-if="store.canDeleteLedger"
           class="icon-btn danger"
@@ -430,10 +430,10 @@ async function doDeleteLedger() {
 
     <!-- Footer actions -->
     <view class="footer-actions">
-      <button class="footer-btn secondary" @click="goToBuyInRequests">
-        带入申请
-        <text v-if="store.pendingCount > 0" class="badge">{{ store.pendingCount }}</text>
-      </button>
+      <view class="footer-btn-wrap" @click="goToBuyInRequests">
+        <button class="footer-btn secondary">带入申请</button>
+        <text v-if="store.pendingCount > 0" class="badge-dot footer-badge">{{ store.pendingCount }}</text>
+      </view>
       <button class="footer-btn" @click="goToSharedExpense">公摊开销</button>
       <button
         v-if="store.role === 'ADMIN' && !store.isArchived"
@@ -553,29 +553,34 @@ async function doDeleteLedger() {
   display: flex;
   gap: 8rpx;
 }
+.icon-btn-wrap {
+  position: relative;
+  display: inline-flex;
+}
 .icon-btn {
   font-size: 22rpx;
   background: #fff;
   color: #666;
   border: 1rpx solid #ddd;
-  position: relative;
 }
 .icon-btn.danger {
   color: #e53935;
   border-color: #e53935;
 }
-.icon-btn .badge {
+.badge-dot {
   position: absolute;
-  top: -10rpx;
-  right: -10rpx;
+  top: -8rpx;
+  right: -8rpx;
   background: #e53935;
   color: #fff;
-  font-size: 18rpx;
-  min-width: 28rpx;
-  height: 28rpx;
-  line-height: 28rpx;
-  border-radius: 14rpx;
-  padding: 0 6rpx;
+  font-size: 20rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  line-height: 32rpx;
+  border-radius: 16rpx;
+  padding: 0 8rpx;
+  text-align: center;
+  z-index: 10;
 }
 .archived-banner {
   margin: 12rpx 32rpx;
@@ -658,17 +663,15 @@ async function doDeleteLedger() {
   background: #c8e6c9;
   color: #fff;
 }
-.footer-btn .badge {
-  position: absolute;
-  top: -10rpx;
-  right: 12rpx;
-  background: #e53935;
-  color: #fff;
-  font-size: 20rpx;
-  min-width: 32rpx;
-  height: 32rpx;
-  line-height: 32rpx;
-  border-radius: 16rpx;
-  padding: 0 8rpx;
+.footer-btn-wrap {
+  flex: 1;
+  position: relative;
+}
+.footer-btn-wrap .footer-btn {
+  width: 100%;
+}
+.footer-badge {
+  top: -12rpx;
+  right: 16rpx;
 }
 </style>

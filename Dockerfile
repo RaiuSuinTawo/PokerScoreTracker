@@ -34,7 +34,9 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 COPY --from=builder /app/server/node_modules /app/server/node_modules
 COPY --from=builder /app/server/dist /app/server/dist
 COPY --from=builder /app/server/prisma /app/server/prisma
+COPY --from=builder /app/server/src /app/server/src
 COPY --from=builder /app/server/package.json /app/server/package.json
+COPY --from=builder /app/server/tsconfig.json /app/server/tsconfig.json
 
 # 云托管默认监听 80
 ENV PORT=80

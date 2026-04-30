@@ -1,5 +1,5 @@
 <template>
-  <view class="card" :class="{ archived: ledger.status === 'ARCHIVED' }" @click="$emit('tap', ledger)">
+  <view class="card" :class="{ archived: ledger.status === 'ARCHIVED' }" @click="$emit('select', ledger)">
     <view class="card-head">
       <text class="title">{{ ledger.title }}</text>
       <view class="badges">
@@ -38,7 +38,7 @@ defineProps<{
 }>()
 
 defineEmits<{
-  (e: 'tap', l: LedgerSummary): void
+  (e: 'select', l: LedgerSummary): void
   (e: 'delete', l: LedgerSummary): void
 }>()
 

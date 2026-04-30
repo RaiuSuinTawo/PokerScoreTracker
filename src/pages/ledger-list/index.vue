@@ -34,7 +34,7 @@
         v-for="l in visibleList"
         :key="l.id"
         :ledger="l"
-        @tap="openLedger"
+        @select="openLedger"
         @delete="confirmDelete"
       />
     </view>

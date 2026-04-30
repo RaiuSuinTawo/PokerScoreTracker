@@ -107,7 +107,7 @@ const editingReadonlyFields = computed<Array<'nickname' | 'buyInCount' | 'chipAm
 const modalShowDelete = computed(() => store.role === 'ADMIN' && !store.isArchived)
 
 // ── Lifecycle ──
-onLoad((q) => {
+onLoad(async (q) => {
   if (!requireAuth()) return
   const id = (q as any)?.id as string | undefined
   if (!id) {
@@ -116,12 +116,16 @@ onLoad((q) => {
     return
   }
   ledgerId.value = id
-  void store.load(id).catch((err) => {
+  try {
+    await store.load(id)
+    // load 成功后立即启动轮询，不依赖 onShow 的时序
+    store.startPolling()
+  } catch (err) {
     if (err instanceof ApiError) {
       uni.showToast({ title: err.message, icon: 'none' })
     }
     setTimeout(() => uni.reLaunch({ url: auth.PAGE_HOME }), 1500)
-  })
+  }
 })
 
 onShow(() => {

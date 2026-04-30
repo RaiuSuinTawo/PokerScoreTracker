@@ -302,6 +302,14 @@ function goBack() {
   uni.navigateBack({ fail: () => uni.reLaunch({ url: auth.PAGE_HOME }) })
 }
 
+function copySerial() {
+  if (!store.ledger) return
+  uni.setClipboardData({
+    data: store.ledger.serial,
+    success: () => uni.showToast({ title: '序列号已复制', icon: 'none' }),
+  })
+}
+
 function confirmDeleteLedger() {
   showDeleteLedgerConfirm.value = true
 }
@@ -333,7 +341,7 @@ async function doDeleteLedger() {
           <text class="tag" :class="store.role === 'ADMIN' ? 'tag-admin' : 'tag-player'">
             {{ store.role === 'ADMIN' ? '管理员' : '玩家' }}
           </text>
-          <text class="tag tag-serial">{{ ledger.serial }}</text>
+          <text class="tag tag-serial" @click="copySerial">{{ ledger.serial }} 📋</text>
           <text v-if="store.isArchived" class="tag tag-archived">已归档</text>
         </view>
       </view>
@@ -375,7 +383,7 @@ async function doDeleteLedger() {
 
     <view v-if="players.length === 0" class="empty">
       <text class="empty-text">等待玩家加入…</text>
-      <text class="empty-hint">把序列号 {{ ledger.serial }} 发给朋友</text>
+      <text class="empty-hint" @click="copySerial">点击复制序列号 {{ ledger.serial }} 发给朋友</text>
     </view>
 
     <view v-else class="player-list">

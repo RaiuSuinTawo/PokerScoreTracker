@@ -168,9 +168,7 @@ function goBack() {
 <template>
   <view class="page">
     <view class="topbar">
-      <button class="back-btn" size="mini" @click="goBack">返回</button>
       <text class="title">带入申请</text>
-      <view style="width: 96rpx" />
     </view>
 
     <view class="tabs">
@@ -236,14 +234,8 @@ function goBack() {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 16rpx 0;
-}
-.back-btn {
-  font-size: 22rpx;
-  background: #fff;
-  border: 2rpx solid #ddd;
-  width: 96rpx;
 }
 .title {
   font-size: 34rpx;

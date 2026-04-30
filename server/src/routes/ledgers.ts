@@ -246,6 +246,10 @@ export async function ledgerRoutes(app: FastifyInstance) {
           playerId: player.id,
         },
       })
+      await emitEvent(tx, ledger.id, LedgerEventType.PLAYER_JOINED, {
+        playerId: player.id,
+        nickname: displayName,
+      })
     })
 
     const full = await fetchFullLedger(ledger.id, userId)

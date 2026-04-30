@@ -526,7 +526,10 @@ async function doDeleteLedger() {
   color: #333;
   border: 1rpx solid #ddd;
   font-family: monospace;
-  letter-spacing: 1rpx;
+  letter-spacing: 2rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  padding: 4rpx 16rpx;
 }
 .tag-archived {
   background: #eee;

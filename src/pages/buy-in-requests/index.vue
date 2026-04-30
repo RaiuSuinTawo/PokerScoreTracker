@@ -167,10 +167,6 @@ function goBack() {
 
 <template>
   <view class="page">
-    <view class="topbar">
-      <text class="title">带入申请</text>
-    </view>
-
     <view class="tabs">
       <view
         class="tab"
@@ -230,17 +226,6 @@ function goBack() {
 .page {
   min-height: 100vh;
   padding: 16rpx 32rpx 40rpx;
-}
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16rpx 0;
-}
-.title {
-  font-size: 34rpx;
-  font-weight: 700;
-  color: #333;
 }
 .tabs {
   display: flex;

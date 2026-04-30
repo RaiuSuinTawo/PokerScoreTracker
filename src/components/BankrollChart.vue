@@ -9,7 +9,7 @@
  *  - Points marked; tap a point forwards via `point-tap` emit.
  *  - Uses uni.createCanvasContext — works on mp-weixin and H5.
  */
-import { onMounted, watch, ref, nextTick } from 'vue'
+import { onMounted, watch, ref, nextTick, getCurrentInstance } from 'vue'
 import type { BankrollPoint } from '@/api/types'
 
 const props = withDefaults(
@@ -27,6 +27,8 @@ const props = withDefaults(
 defineEmits<{
   'point-tap': [p: BankrollPoint]
 }>()
+
+const instance = getCurrentInstance()
 
 // Rough pixel dimensions read via uni.getSystemInfoSync.windowWidth × ratio.
 const canvasWidthPx = ref(320)
@@ -47,7 +49,9 @@ function computeDimensions() {
 }
 
 function draw() {
-  const ctx = uni.createCanvasContext(props.canvasId)
+  // In mp-weixin, createCanvasContext inside a component needs the component
+  // instance as second argument; otherwise the canvas lookup fails silently.
+  const ctx = uni.createCanvasContext(props.canvasId, instance)
   const W = canvasWidthPx.value
   const H = canvasHeightPx.value
   const padL = 44
@@ -183,8 +187,8 @@ function draw() {
 async function redraw() {
   computeDimensions()
   await nextTick()
-  // Delay a microtask; some platforms need the canvas element flushed.
-  setTimeout(() => draw(), 0)
+  // Give canvas element time to flush in the native layer (mp-weixin needs ~150ms)
+  setTimeout(() => draw(), 150)
 }
 
 onMounted(() => {

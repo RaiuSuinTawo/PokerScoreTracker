@@ -1,6 +1,6 @@
 # HoldemAccount Server
 
-Fastify + Prisma + SQLite 后端。详细设计见仓库根 [`EXPANSION_PLAN.md`](../EXPANSION_PLAN.md)，快速部署见仓库根 [`README.md`](../README.md)。
+Fastify + Prisma + MySQL 后端。详细设计见仓库根 [`EXPANSION_PLAN.md`](../EXPANSION_PLAN.md)，快速部署见仓库根 [`README.md`](../README.md)。
 
 ---
 
@@ -58,6 +58,8 @@ npx prisma migrate deploy      # 生产用，不改 schema
 npm run db:seed                # 首次，创建 .env 里的 ADMIN_USERNAME
 ```
 
+> 本项目使用 MySQL 数据库。本地开发可用 `docker compose up mysql -d` 快速起一个 MySQL 8 实例（见 `deploy/docker-compose.yml`）。
+
 ---
 
 ## 运行
@@ -102,7 +104,7 @@ npm run admin:list-users
 
 | 变量 | 作用 | 备注 |
 |---|---|---|
-| `DATABASE_URL` | SQLite 文件 | `file:./data/holdem.db` |
+| `DATABASE_URL` | MySQL 连接串 | `mysql://user:pass@host:3306/holdem`（云托管由平台注入） |
 | `JWT_ACCESS_SECRET` | access 签名密钥 | **必填，长度≥32**，用 `openssl rand -hex 64` 生成 |
 | `JWT_REFRESH_SECRET` | refresh 签名密钥 | 同上，**与 access 不同** |
 | `JWT_ACCESS_TTL_SECONDS` | access 有效期 | 默认 900（15 分钟） |
@@ -158,18 +160,20 @@ npm run admin:list-users
 
 ### 备份
 
-每日用 SQLite 原生 `.backup` 热备（不锁库，几 ms 完成）。推荐装到 `/etc/cron.daily/`：
+**微信云托管**：平台自带 MySQL 自动备份，无需手动操作。
+
+**自有服务器**：每日用 mysqldump 热备。推荐装到 `/etc/cron.daily/`：
 ```bash
-sudo install -m755 deploy/backup-sqlite.sh /etc/cron.daily/holdem-backup
+sudo install -m755 deploy/backup-mysql.sh /etc/cron.daily/holdem-backup
 ```
-脚本会把 `server/data/holdem.db` 备份到 `/backups/holdem/holdem-YYYY-MM-DD.db` 并保留 30 天。
+脚本会把数据库备份到 `/backups/holdem/holdem-YYYY-MM-DD.sql.gz` 并保留 30 天。
 
 ### 恢复
 
-停服 → 覆盖 → 启服：
+停服 → 恢复 → 启服：
 ```bash
 pm2 stop holdem
-cp /backups/holdem/holdem-2026-04-20.db /opt/holdem/server/data/holdem.db
+gunzip < /backups/holdem/holdem-2026-04-20.sql.gz | mysql -h localhost -u holdem -p holdem
 pm2 start holdem
 ```
 
@@ -186,6 +190,8 @@ pm2 start holdem
 ---
 
 ## Phase 1 端到端自测
+
+> 前置：确保 MySQL 已运行，`DATABASE_URL` 已配置，已执行 `prisma migrate deploy` + `db:seed`。
 
 ```bash
 # 1. 创建用户

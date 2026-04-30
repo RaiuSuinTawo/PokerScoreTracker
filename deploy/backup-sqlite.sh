@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #
-# HoldemAccount · 每日 SQLite 热备份
+# [已弃用] HoldemAccount · SQLite 热备份
+#
+# 项目已切换到 MySQL。此脚本仅为仍使用 SQLite 的旧部署保留。
+# 新部署请使用 backup-mysql.sh。
 #
 # linux-setup.sh 会把本脚本 install 到 /etc/cron.daily/holdem-backup，
 # 并把 __DB_PATH__ 替换成真实 DB 路径。

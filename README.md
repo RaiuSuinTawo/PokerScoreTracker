@@ -1,6 +1,6 @@
 # HoldemAccount · 德扑记账
 
-多用户协作的德州扑克记账工具：客户端（uni-app + Vue 3）+ 服务端（Node.js + Fastify + SQLite）。
+多用户协作的德州扑克记账工具：客户端（uni-app + Vue 3）+ 服务端（Node.js + Fastify + MySQL）。
 
 - **账号登录**（管理员预配置，首次登录强制改密）
 - **账本协作**：创建账本生成 8 位序列号，朋友凭序列号加入自动添加 0 手玩家
@@ -16,14 +16,16 @@
 ```
 /
 ├── src/                     # uni-app 客户端（Vue 3 + TS + Pinia）
-├── server/                  # Node.js 服务端（Fastify + Prisma + SQLite）
+├── server/                  # Node.js 服务端（Fastify + Prisma + MySQL）
 ├── deploy/                  # 部署脚本与配置模板
 │   ├── linux-setup.sh       # 首次 Linux 部署
 │   ├── linux-update.sh      # 更新重启
-│   ├── backup-sqlite.sh     # 每日备份（放到 /etc/cron.daily/）
+│   ├── backup-sqlite.sh     # SQLite 备份（旧版，已弃用）
+│   ├── backup-mysql.sh      # MySQL 每日备份
 │   ├── nginx.conf.template  # Nginx 反代 + H5 静态托管
-│   ├── Dockerfile           # 服务端镜像
-│   └── docker-compose.yml   # 一键容器化
+│   ├── Dockerfile           # 服务端镜像（云托管 / Docker 通用）
+│   ├── docker-compose.yml   # 本地/自有服务器容器化
+│   └── cloudrun-setup.md    # 微信云托管部署指南
 ├── EXPANSION_PLAN.md        # 设计文档（含数据模型、API、分阶段）
 └── README.md                # 本文件
 ```
@@ -89,14 +91,36 @@ npm run dev:mp-weixin
 
 ## 生产部署
 
-有两条路径：**Linux 原生**（PM2 + Nginx）或 **Docker**。普通个人部署推荐 Linux 原生，后续切 Docker 只要重起容器。
+有三条路径，推荐程度从高到低：
 
-**共同前置：**
-1. 一台 Ubuntu 22.04 服务器（1C2G 够用）
-2. 一个 A 记录指向该服务器的域名（微信小程序必须 HTTPS）
-3. SSH 可登录，root 或 sudoer
+| 路径 | 优势 | 前置条件 |
+|---|---|---|
+| **微信云托管**（推荐新手） | 免域名/免备案/免服务器 | 仅需微信小程序账号 |
+| Linux 原生 | 完全自控、可同时跑 H5 | 服务器 + 域名 + ICP 备案 |
+| Docker | 易迁移 | 同上 |
 
-### 路径 A：Linux 原生（推荐）
+### 路径 A：微信云托管（推荐）
+
+**最简单的部署方式**——不需要买域名、不需要 ICP 备案、不需要管服务器。
+
+详细步骤见 **[deploy/cloudrun-setup.md](./deploy/cloudrun-setup.md)**。
+
+简要流程：
+1. 在 [微信云托管控制台](https://cloud.weixin.qq.com/) 开通环境、创建 MySQL 数据库
+2. 创建服务 `holdem`，配置环境变量（DATABASE_URL、JWT 密钥等）
+3. 关联 Git 仓库自动部署（或手动上传镜像）
+4. 在 WebShell 执行 `npx prisma migrate deploy && npx tsx prisma/seed.ts`
+5. 小程序构建时注入云环境变量：
+   ```bash
+   VITE_CLOUD_ENV=你的环境ID VITE_CLOUD_SERVICE=holdem npm run build:mp-weixin
+   ```
+6. 微信开发者工具上传 → 提审 → 发布
+
+> ⚠️ 云托管方案下，H5 网页版仍需域名才能使用。如果你只用小程序，则完全不需要域名。
+
+### 路径 B：Linux 原生
+
+Linux 原生方式需要：一台 Ubuntu 22.04 服务器（1C2G 够用）、域名（A 记录指向服务器）、ICP 备案、SSH root 权限。
 
 ```bash
 # 在服务器上
@@ -128,7 +152,7 @@ sudo bash deploy/linux-update.sh
 ```
 脚本会：拉取依赖变更、跑迁移、重新构建 H5、重启 PM2 服务。
 
-### 路径 B：Docker
+### 路径 C：Docker
 
 ```bash
 cd /opt/holdem
@@ -147,12 +171,12 @@ docker compose up -d
 
 1. 在 `src/manifest.json` 把 `mp-weixin.appid` 填写你的真实 appid
 2. 发版构建前把 `mp-weixin.setting.urlCheck` 改为 `true`（或直接删除该字段）
-3. 在微信公众平台 → 开发 → 开发管理 → 服务器域名：
-   - `request` 合法域名：`https://你的域名`
-4. 构建产物：
-   ```bash
-   VITE_API_BASE=https://你的域名/api npm run build:mp-weixin
-   ```
+3. **如果用自有服务器部署**：
+   - 在微信公众平台 → 开发 → 开发管理 → 服务器域名 → `request` 合法域名：`https://你的域名`
+   - 构建：`VITE_API_BASE=https://你的域名/api npm run build:mp-weixin`
+4. **如果用微信云托管**：
+   - 不需要配域名白名单
+   - 构建：`VITE_CLOUD_ENV=你的环境ID VITE_CLOUD_SERVICE=holdem npm run build:mp-weixin`
 5. 用**微信开发者工具**打开 `dist/build/mp-weixin/` 导入
 6. 上传 → 提交审核
 7. **重要**：登录页必须放《用户服务协议》与《隐私政策》链接（审核要求）；本项目登录页已留出"账号由管理员分配，无注册"提示文案，您只需在 `src/pages/login/index.vue` 底部 `.hint` 区域补上协议链接即可
@@ -192,9 +216,10 @@ npm run admin:disable-user   -- --username alice --enable   # 恢复
 | `/api/health` 返回 502 | `pm2 status` 看服务是否在跑；`pm2 logs holdem` 看错误；`/opt/holdem/server/.env` JWT 密钥是否长度 ≥ 32 |
 | 登录 401 | 账号密码核对；若 `USER_DISABLED` 则用 CLI `--enable` 恢复 |
 | 客户端登录一直转圈 | 打开浏览器控制台看 network，多半是 `VITE_API_BASE` 拼错 / 未重新构建 |
-| 微信小程序请求失败 | 公众平台的"服务器域名"是否加了你的域名；manifest.json `urlCheck` 是否为 true |
+| 微信小程序请求失败（自有服务器） | 公众平台的"服务器域名"是否加了你的域名；manifest.json `urlCheck` 是否为 true |
+| 微信小程序请求失败（云托管） | 检查 `VITE_CLOUD_ENV` 和 `VITE_CLOUD_SERVICE` 是否正确传入构建命令 |
 | H5 改密后永远提示改密 | 后端按设计每次改密吊销全部 refresh token；必须重新登录 |
-| SQLite 锁 | 个位数 QPS 不会锁；若遇到请检查备份脚本是否在正常读取期间竞争——默认脚本用 `.backup` 命令，不会锁 |
+| MySQL 连接失败 | 检查 `DATABASE_URL` 格式，确认 MySQL 服务在运行，数据库 `holdem` 已创建 |
 
 ---
 

@@ -1,25 +1,44 @@
 /**
- * HTTP client wrapping uni.request.
- * See EXPANSION_PLAN.md §7.2 and §4.2.
+ * HTTP client — dual transport layer.
  *
- * Behaviour:
- *  - reads Bearer access token from authStore
- *  - base URL from import.meta.env.VITE_API_BASE (fallback to DEV_API_BASE)
- *  - on 401 + code=TOKEN_EXPIRED: single-flight refresh, retry original once
- *  - on 401 + code=MUST_CHANGE_PASSWORD: reLaunch to change-password page
- *  - on other 401 / REFRESH_INVALID / REFRESH_REVOKED: logout + reLaunch to login
- *  - non-2xx throws ApiError (with server-provided code/message)
+ * Platforms:
+ *  - **微信小程序 (MP-WEIXIN)**: uses `wx.cloud.callContainer` via WeChat
+ *    internal network — no domain/HTTPS/CORS required.
+ *  - **H5 / others**: uses `uni.request` with `VITE_API_BASE` base URL.
+ *
+ * Both transports return the same `{ statusCode, data }` shape, so all
+ * downstream logic (auth, error handling, retry) is shared.
+ *
+ * See EXPANSION_PLAN.md §7.2 and §4.2.
  */
 import type { RefreshResponse } from '@/api/types'
+
+/* ------------------------------------------------------------------
+ * Base URL (H5 / non-cloud fallback)
+ * ------------------------------------------------------------------ */
 
 const DEV_API_BASE = 'http://localhost:3000/api'
 
 function getBaseUrl(): string {
-  // Vite injects import.meta.env.* at build time; fallback for safety.
   // @ts-ignore
   const viteBase = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE : undefined
   return (viteBase as string | undefined) || DEV_API_BASE
 }
+
+/* ------------------------------------------------------------------
+ * Cloud Run config (MP-WEIXIN only, injected at build time)
+ * Set VITE_CLOUD_ENV + VITE_CLOUD_SERVICE in build command:
+ *   VITE_CLOUD_ENV=prod-xxx VITE_CLOUD_SERVICE=holdem npm run build:mp-weixin
+ * ------------------------------------------------------------------ */
+
+// @ts-ignore
+const CLOUD_ENV: string | undefined = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_CLOUD_ENV : undefined
+// @ts-ignore
+const CLOUD_SERVICE: string | undefined = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_CLOUD_SERVICE : undefined
+
+/* ------------------------------------------------------------------
+ * ApiError
+ * ------------------------------------------------------------------ */
 
 export class ApiError extends Error {
   code: string
@@ -62,31 +81,73 @@ export function installTokenBridge(bridge: TokenBridge) {
 }
 
 /* ------------------------------------------------------------------
- * Core request implementation
+ * Unified transport — picks callContainer or uni.request per platform
  * ------------------------------------------------------------------ */
 
-function buildUrl(path: string, query?: RequestOpts['query']): string {
-  const base = getBaseUrl().replace(/\/+$/, '')
+interface TransportOpts {
+  path: string
+  method: string
+  data?: any
+  header: Record<string, string>
+  timeout?: number
+}
+
+interface TransportResult {
+  statusCode: number
+  data: any
+}
+
+function buildPath(path: string, query?: RequestOpts['query']): string {
   const p = path.startsWith('/') ? path : `/${path}`
-  if (!query) return base + p
+  if (!query) return p
   const parts: string[] = []
   for (const k of Object.keys(query)) {
     const v = query[k]
     if (v === undefined || v === null) continue
     parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
   }
-  return parts.length ? `${base}${p}?${parts.join('&')}` : base + p
+  return parts.length ? `${p}?${parts.join('&')}` : p
 }
 
-function uniRequestPromise(opts: UniApp.RequestOptions): Promise<UniApp.RequestSuccessCallbackResult> {
-  return new Promise((resolve, reject) => {
+function doTransport(opts: TransportOpts): Promise<TransportResult> {
+  // #ifdef MP-WEIXIN
+  if (CLOUD_ENV && CLOUD_SERVICE) {
+    return new Promise<TransportResult>((resolve, reject) => {
+      ;(wx as any).cloud.callContainer({
+        config: { env: CLOUD_ENV },
+        path: opts.path,
+        method: opts.method,
+        header: {
+          'X-WX-SERVICE': CLOUD_SERVICE,
+          ...opts.header,
+        },
+        data: opts.data,
+        success: (res: any) => resolve({ statusCode: res.statusCode, data: res.data }),
+        fail: (err: any) => reject(err),
+      })
+    })
+  }
+  // #endif
+
+  // H5 / fallback: standard uni.request with full URL
+  const base = getBaseUrl().replace(/\/+$/, '')
+  const url = base + opts.path
+  return new Promise<TransportResult>((resolve, reject) => {
     uni.request({
-      ...opts,
-      success: (res) => resolve(res as UniApp.RequestSuccessCallbackResult),
+      url,
+      method: opts.method as any,
+      data: opts.data,
+      header: opts.header,
+      timeout: opts.timeout ?? 15000,
+      success: (res) => resolve({ statusCode: res.statusCode, data: res.data }),
       fail: (err) => reject(err),
     })
   })
 }
+
+/* ------------------------------------------------------------------
+ * Error extraction
+ * ------------------------------------------------------------------ */
 
 function extractError(resBody: any, status: number): ApiError {
   const err = resBody && typeof resBody === 'object' ? resBody.error : null
@@ -115,12 +176,12 @@ async function attemptRefresh(): Promise<boolean> {
     try {
       const refresh = tokenBridge!.getRefresh()
       if (!refresh) return false
-      const url = buildUrl('/auth/refresh')
-      const res = await uniRequestPromise({
-        url,
+      const res = await doTransport({
+        path: '/auth/refresh',
         method: 'POST',
         data: { refresh },
         header: { 'content-type': 'application/json' },
+        timeout: 15000,
       })
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const body = res.data as RefreshResponse
@@ -146,7 +207,7 @@ async function attemptRefresh(): Promise<boolean> {
 
 export async function request<T = unknown>(path: string, opts: RequestOpts = {}): Promise<T> {
   const method = opts.method ?? 'GET'
-  const url = buildUrl(path, opts.query)
+  const reqPath = buildPath(path, opts.query)
   const header: Record<string, string> = {
     'content-type': 'application/json',
     accept: 'application/json',
@@ -156,11 +217,11 @@ export async function request<T = unknown>(path: string, opts: RequestOpts = {})
     if (access) header.authorization = `Bearer ${access}`
   }
 
-  let res: UniApp.RequestSuccessCallbackResult
+  let res: TransportResult
   try {
-    res = await uniRequestPromise({
-      url,
-      method: method as any,
+    res = await doTransport({
+      path: reqPath,
+      method,
       data: opts.data as any,
       header,
       timeout: 15000,

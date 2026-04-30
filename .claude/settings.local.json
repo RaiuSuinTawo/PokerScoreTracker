@@ -41,7 +41,15 @@
       "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/linux-update.sh)",
       "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/backup-sqlite.sh)",
       "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/build-mp-weixin.sh)",
-      "Bash(xargs kill *)"
+      "Bash(xargs kill *)",
+      "WebSearch",
+      "Bash(taskkill //F //IM tsx.exe)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(tasklist)",
+      "Bash(VITE_CLOUD_ENV=\"test-env\" VITE_CLOUD_SERVICE=\"holdem\" npx uni build -p mp-weixin)",
+      "Bash(bash -n G:/CCWorkSpace/Item-HoldemAccount/deploy/backup-mysql.sh)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)"
     ]
   }
 }

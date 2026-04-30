@@ -1,14 +1,14 @@
 // Prisma schema for HoldemAccount server
 // See EXPANSION_PLAN.md §5 for rationale.
-// NOTE: SQLite does not support native enums; we use String columns with
-// compile-time unions in server/src/types.ts to emulate them.
+// NOTE: We use String columns with compile-time unions in server/src/types.ts
+// to represent enums (ACTIVE/ARCHIVED, ADMIN/PLAYER, etc.) — works on all providers.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -112,7 +112,7 @@ model LedgerEvent {
   id        String   @id @default(cuid())
   ledgerId  String
   type      String // BUY_IN_REQUESTED | BUY_IN_DECIDED | PLAYER_JOINED | EXPENSE_CHANGED | PLAYER_UPDATED | LEDGER_UPDATED | LEDGER_ARCHIVED
-  payload   String // JSON-encoded
+  payload   String   @db.Text // JSON-encoded
   createdAt DateTime @default(now())
 
   ledger Ledger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)

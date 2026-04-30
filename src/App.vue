@@ -3,6 +3,13 @@ import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 
 onLaunch(async () => {
+  // #ifdef MP-WEIXIN
+  const cloudEnv = import.meta.env?.VITE_CLOUD_ENV as string | undefined
+  if (cloudEnv) {
+    wx.cloud.init({ env: cloudEnv, traceUser: true })
+  }
+  // #endif
+
   const auth = useAuthStore()
   try {
     await auth.hydrate()

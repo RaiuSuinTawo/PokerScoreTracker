@@ -12,7 +12,7 @@
  * All mutations go through ledgerStore actions which hit the API
  * and kick the poller.
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 import { useLedgerStore } from '@/stores/ledgerStore'
@@ -107,7 +107,21 @@ const editingReadonlyFields = computed<Array<'nickname' | 'buyInCount' | 'chipAm
 const modalShowDelete = computed(() => store.role === 'ADMIN' && !store.isArchived)
 
 // ── Lifecycle ──
-onLoad(async (q) => {
+
+/**
+ * 用 watch 保证 store.ledger 一旦加载成功就启动轮询。
+ * onLoad 中的 async/await 在 uni-app 小程序里不一定可靠，
+ * 而 onShow 触发时 load 可能还没完成。watch 是最稳妥的兜底。
+ */
+watch(
+  () => store.ledger,
+  (val) => {
+    if (val) store.startPolling()
+  },
+  { immediate: true },
+)
+
+onLoad((q) => {
   if (!requireAuth()) return
   const id = (q as any)?.id as string | undefined
   if (!id) {
@@ -116,16 +130,12 @@ onLoad(async (q) => {
     return
   }
   ledgerId.value = id
-  try {
-    await store.load(id)
-    // load 成功后立即启动轮询，不依赖 onShow 的时序
-    store.startPolling()
-  } catch (err) {
+  store.load(id).catch((err) => {
     if (err instanceof ApiError) {
       uni.showToast({ title: err.message, icon: 'none' })
     }
     setTimeout(() => uni.reLaunch({ url: auth.PAGE_HOME }), 1500)
-  }
+  })
 })
 
 onShow(() => {

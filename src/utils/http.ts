@@ -109,7 +109,7 @@ function doTransport(opts: TransportOpts): Promise<TransportResult> {
   // #ifdef MP-WEIXIN
   if (CLOUD_ENV && CLOUD_SERVICE) {
     return new Promise<TransportResult>((resolve, reject) => {
-      ;(wx as any).cloud.callContainer({
+      const callOpts: any = {
         config: { env: CLOUD_ENV },
         path: `/api${opts.path}`,
         method: opts.method,
@@ -117,10 +117,14 @@ function doTransport(opts: TransportOpts): Promise<TransportResult> {
           'X-WX-SERVICE': CLOUD_SERVICE,
           ...opts.header,
         },
-        data: opts.data,
         success: (res: any) => resolve({ statusCode: res.statusCode, data: res.data }),
         fail: (err: any) => reject(err),
-      })
+      }
+      // Only attach data for methods that have a request body
+      if (opts.method !== 'GET' && opts.method !== 'DELETE' && opts.data !== undefined) {
+        callOpts.data = opts.data
+      }
+      ;(wx as any).cloud.callContainer(callOpts)
     })
   }
   // #endif

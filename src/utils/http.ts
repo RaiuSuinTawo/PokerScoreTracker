@@ -20,9 +20,7 @@ import type { RefreshResponse } from '@/api/types'
 const DEV_API_BASE = 'http://localhost:3000/api'
 
 function getBaseUrl(): string {
-  // @ts-ignore
-  const viteBase = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE : undefined
-  return (viteBase as string | undefined) || DEV_API_BASE
+  return import.meta.env.VITE_API_BASE || DEV_API_BASE
 }
 
 /* ------------------------------------------------------------------
@@ -31,10 +29,8 @@ function getBaseUrl(): string {
  *   VITE_CLOUD_ENV=prod-xxx VITE_CLOUD_SERVICE=holdem npm run build:mp-weixin
  * ------------------------------------------------------------------ */
 
-// @ts-ignore
-const CLOUD_ENV: string | undefined = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_CLOUD_ENV : undefined
-// @ts-ignore
-const CLOUD_SERVICE: string | undefined = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_CLOUD_SERVICE : undefined
+const CLOUD_ENV: string | undefined = import.meta.env.VITE_CLOUD_ENV
+const CLOUD_SERVICE: string | undefined = import.meta.env.VITE_CLOUD_SERVICE
 
 /* ------------------------------------------------------------------
  * ApiError

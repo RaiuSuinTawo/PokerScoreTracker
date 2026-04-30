@@ -138,9 +138,9 @@ export const useLedgerStore = defineStore('ledger', () => {
   function startPolling() {
     if (poller?.isRunning()) return
     poller = createPoller({
-      baseIntervalMs: 5000,
-      maxIntervalMs: 10000,
-      emptyToBackoff: 5,
+      baseIntervalMs: 2000,
+      maxIntervalMs: 5000,
+      emptyToBackoff: 10,
       fn: _pollOnce,
       onError: (e) => console.warn('[ledgerStore] poll error', e),
     })

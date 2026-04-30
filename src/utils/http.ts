@@ -113,6 +113,7 @@ function doTransport(opts: TransportOpts): Promise<TransportResult> {
         config: { env: CLOUD_ENV },
         path: `/api${opts.path}`,
         method: opts.method,
+        timeout: opts.timeout ?? 15000,
         header: {
           'X-WX-SERVICE': CLOUD_SERVICE,
           ...opts.header,

@@ -57,6 +57,9 @@ export function createPoller(opts: PollerOptions): Poller {
       }
     } catch (err) {
       opts.onError?.(err)
+      // On error (e.g. timeout / cold-start), back off to max interval
+      // to avoid flooding with requests that will all timeout.
+      currentDelay = max
     } finally {
       inflight = false
       schedule()

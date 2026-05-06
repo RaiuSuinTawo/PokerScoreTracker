@@ -25,8 +25,8 @@ export interface AccessPayload {
   username: string
 }
 
-export function signAccessToken(user: { id: string; username: string }): string {
-  return jwt.sign({ sub: user.id, username: user.username }, ACCESS_SECRET!, {
+export function signAccessToken(user: { id: string; username?: string | null }): string {
+  return jwt.sign({ sub: user.id, username: user.username ?? '' }, ACCESS_SECRET!, {
     expiresIn: ACCESS_TTL,
     algorithm: 'HS256',
   })

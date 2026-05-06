@@ -29,15 +29,21 @@ const changePasswordBody = z.object({
   newPassword: z.string().min(8).max(256),
 })
 
+const registerBody = z.object({
+  username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
+  password: z.string().min(8).max(256),
+  displayName: z.string().trim().min(1).max(64),
+})
+
 function userPublicView(u: {
   id: string
-  username: string
+  username: string | null
   displayName: string
   mustChangePwd: boolean
 }) {
   return {
     id: u.id,
-    username: u.username,
+    username: u.username ?? '',
     displayName: u.displayName,
     mustChangePwd: u.mustChangePwd,
   }
@@ -62,6 +68,11 @@ export async function authRoutes(app: FastifyInstance) {
     if (user.disabled) {
       return reply.code(403).send({
         error: { code: 'USER_DISABLED', message: '账号已禁用' },
+      })
+    }
+    if (!user.passwordHash) {
+      return reply.code(400).send({
+        error: { code: 'NO_PASSWORD', message: '该账号通过微信登录，无密码' },
       })
     }
     const ok = await verifyPassword(user.passwordHash, password)
@@ -170,6 +181,11 @@ export async function authRoutes(app: FastifyInstance) {
           error: { code: 'NOT_FOUND', message: '用户不存在' },
         })
       }
+      if (!user.passwordHash) {
+        return reply.code(400).send({
+          error: { code: 'NO_PASSWORD', message: '微信账号不支持密码修改' },
+        })
+      }
       const ok = await verifyPassword(user.passwordHash, oldPassword)
       if (!ok) {
         return reply.code(401).send({
@@ -189,4 +205,72 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(204).send()
     },
   )
+
+  // POST /auth/wx-login — 微信小程序自动登录（云托管注入 X-WX-OPENID）
+  app.post('/auth/wx-login', async (req, reply) => {
+    const openid = req.headers['x-wx-openid'] as string | undefined
+    if (!openid) {
+      return reply.code(400).send({
+        error: { code: 'MISSING_OPENID', message: '缺少微信身份信息，请通过小程序访问' },
+      })
+    }
+
+    let user = await prisma.user.findUnique({ where: { wxOpenid: openid } })
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          wxOpenid: openid,
+          displayName: '微信用户',
+          mustChangePwd: false,
+        },
+      })
+    }
+
+    if (user.disabled) {
+      return reply.code(403).send({
+        error: { code: 'USER_DISABLED', message: '账号已禁用' },
+      })
+    }
+
+    const access = signAccessToken(user)
+    const refresh = await issueRefreshToken(user.id)
+    return reply.send({
+      access,
+      refresh,
+      expiresIn: tokenConfig.accessTtlSeconds,
+      user: userPublicView(user),
+    })
+  })
+
+  // POST /auth/register — H5 自由注册
+  app.post('/auth/register', async (req, reply) => {
+    const parsed = registerBody.safeParse(req.body)
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: { code: 'BAD_REQUEST', message: '用户名3-32位字母数字下划线，密码至少8位' },
+      })
+    }
+    const { username, password, displayName } = parsed.data
+
+    const existing = await prisma.user.findUnique({ where: { username } })
+    if (existing) {
+      return reply.code(409).send({
+        error: { code: 'USERNAME_TAKEN', message: '用户名已被占用' },
+      })
+    }
+
+    const hash = await hashPassword(password)
+    const user = await prisma.user.create({
+      data: { username, passwordHash: hash, displayName, mustChangePwd: false },
+    })
+
+    const access = signAccessToken(user)
+    const refresh = await issueRefreshToken(user.id)
+    return reply.code(201).send({
+      access,
+      refresh,
+      expiresIn: tokenConfig.accessTtlSeconds,
+      user: userPublicView(user),
+    })
+  })
 }

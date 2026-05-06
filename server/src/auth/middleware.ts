@@ -79,7 +79,7 @@ export function requireAuth(opts: RequireAuthOptions = {}): preHandlerHookHandle
 
     req.auth = {
       userId: user.id,
-      username: user.username,
+      username: user.username ?? '',
       displayName: user.displayName,
       mustChangePwd: user.mustChangePwd,
     }

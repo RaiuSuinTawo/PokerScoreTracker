@@ -94,12 +94,19 @@ export const useAuthStore = defineStore('auth', () => {
       try {
         const me = await api.get<MeResponse>('/auth/me')
         _setUser(me.user)
+        return
       } catch (err) {
         if (err instanceof ApiError) {
           // http.ts already cleared & redirected on hard failures; just swallow here
         }
+        _clear()
       }
     }
+
+    // #ifdef MP-WEIXIN
+    // 小程序：没有有效 token 时自动微信登录
+    await wxLogin()
+    // #endif
   }
 
   // ---- Actions ----
@@ -107,6 +114,34 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await request<LoginResponse>('/auth/login', {
       method: 'POST',
       data: { username, password },
+      skipAuth: true,
+      skipAuthHandling: true,
+    })
+    _setTokens(res.access, res.refresh)
+    _setUser(res.user)
+  }
+
+  /** 微信小程序自动登录（云托管注入 X-WX-OPENID） */
+  async function wxLogin(): Promise<boolean> {
+    try {
+      const res = await request<LoginResponse>('/auth/wx-login', {
+        method: 'POST',
+        skipAuth: true,
+        skipAuthHandling: true,
+      })
+      _setTokens(res.access, res.refresh)
+      _setUser(res.user)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** H5 自由注册 */
+  async function register(username: string, password: string, displayName: string) {
+    const res = await request<LoginResponse>('/auth/register', {
+      method: 'POST',
+      data: { username, password, displayName },
       skipAuth: true,
       skipAuthHandling: true,
     })
@@ -178,6 +213,8 @@ export const useAuthStore = defineStore('auth', () => {
     // actions
     hydrate,
     login,
+    wxLogin,
+    register,
     logout,
     changePassword,
     refreshMe,

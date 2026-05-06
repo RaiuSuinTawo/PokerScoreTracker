@@ -5,15 +5,33 @@
       <text class="brand-title">德扑记账</text>
       <text class="brand-icon">♠</text>
     </view>
-    <view class="subtitle">请登录继续</view>
 
-    <view class="form">
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="auto-login">
+      <text class="loading-text" v-if="!wxFailed">正在登录...</text>
+      <view v-else class="wx-fail">
+        <text class="fail-text">自动登录失败</text>
+        <button class="retry-btn" @click="retryWx">重试</button>
+      </view>
+    </view>
+    <!-- #endif -->
+
+    <!-- #ifndef MP-WEIXIN -->
+    <view class="subtitle">请登录或注册</view>
+
+    <view class="tabs">
+      <view class="tab" :class="{ active: tab === 'login' }" @click="tab = 'login'">登录</view>
+      <view class="tab" :class="{ active: tab === 'register' }" @click="tab = 'register'">注册</view>
+    </view>
+
+    <!-- Login form -->
+    <view v-if="tab === 'login'" class="form">
       <view class="field">
         <text class="label">账号</text>
         <input
           class="input"
           v-model="username"
-          placeholder="由管理员分配"
+          placeholder="用户名"
           maxlength="64"
           :disabled="loading"
           autocomplete="username"
@@ -32,17 +50,63 @@
         />
       </view>
       <view v-if="error" class="error">{{ error }}</view>
-      <button class="submit" :disabled="!canSubmit || loading" @click="submit">
+      <button class="submit" :disabled="!canLogin || loading" @click="handleLogin">
         {{ loading ? '登录中…' : '登录' }}
       </button>
     </view>
 
-    <view class="hint">
-      账号由管理员预配置，无注册功能。<br />
-      忘记密码请联系管理员重置。
+    <!-- Register form -->
+    <view v-if="tab === 'register'" class="form">
+      <view class="field">
+        <text class="label">用户名</text>
+        <input
+          class="input"
+          v-model="regUsername"
+          placeholder="3-32位字母数字下划线"
+          maxlength="32"
+          :disabled="loading"
+        />
+      </view>
+      <view class="field">
+        <text class="label">昵称</text>
+        <input
+          class="input"
+          v-model="regDisplayName"
+          placeholder="显示给其他玩家的名称"
+          maxlength="64"
+          :disabled="loading"
+        />
+      </view>
+      <view class="field">
+        <text class="label">密码</text>
+        <input
+          class="input"
+          type="password"
+          v-model="regPassword"
+          placeholder="至少8位"
+          maxlength="256"
+          :disabled="loading"
+        />
+      </view>
+      <view class="field">
+        <text class="label">确认密码</text>
+        <input
+          class="input"
+          type="password"
+          v-model="regConfirm"
+          placeholder="再次输入密码"
+          maxlength="256"
+          :disabled="loading"
+        />
+      </view>
+      <view v-if="error" class="error">{{ error }}</view>
+      <button class="submit" :disabled="!canRegister || loading" @click="handleRegister">
+        {{ loading ? '注册中…' : '注册' }}
+      </button>
     </view>
+    <!-- #endif -->
 
-    <!-- Legacy data export dialog (§5 of plan) -->
+    <!-- Legacy data export dialog -->
     <view v-if="showLegacyDialog" class="modal-mask" @tap="dismissLegacy">
       <view class="modal-card" @tap.stop>
         <text class="modal-title">本地旧数据</text>
@@ -64,41 +128,112 @@ import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from '@/utils/http'
 
-const username = ref('')
-const password = ref('')
+const auth = useAuthStore()
+
+const tab = ref<'login' | 'register'>('login')
 const loading = ref(false)
 const error = ref('')
 
-const auth = useAuthStore()
+// Login fields
+const username = ref('')
+const password = ref('')
+const canLogin = computed(() => username.value.trim().length > 0 && password.value.length > 0)
 
-const canSubmit = computed(() => username.value.trim().length > 0 && password.value.length > 0)
+// Register fields
+const regUsername = ref('')
+const regDisplayName = ref('')
+const regPassword = ref('')
+const regConfirm = ref('')
+const canRegister = computed(
+  () =>
+    regUsername.value.trim().length >= 3 &&
+    regDisplayName.value.trim().length > 0 &&
+    regPassword.value.length >= 8 &&
+    regConfirm.value.length > 0,
+)
 
-async function submit() {
-  if (!canSubmit.value || loading.value) return
+// WeChat auto-login state
+const wxFailed = ref(false)
+
+function goHome() {
+  if (auth.mustChangePwd) {
+    uni.reLaunch({ url: auth.PAGE_CHANGE_PWD })
+  } else {
+    uni.reLaunch({ url: auth.PAGE_HOME })
+  }
+}
+
+async function handleLogin() {
+  if (!canLogin.value || loading.value) return
   loading.value = true
   error.value = ''
   try {
     await auth.login(username.value.trim(), password.value)
-    if (auth.mustChangePwd) {
-      uni.reLaunch({ url: auth.PAGE_CHANGE_PWD })
-    } else {
-      uni.reLaunch({ url: auth.PAGE_HOME })
-    }
+    goHome()
   } catch (err) {
-    if (err instanceof ApiError) {
-      error.value = err.message || '登录失败'
-    } else {
-      error.value = '登录失败，请重试'
-    }
+    error.value = err instanceof ApiError ? err.message || '登录失败' : '登录失败，请重试'
   } finally {
     loading.value = false
   }
 }
 
-// ---- Legacy local data detection & export dialog (§5) ----
+async function handleRegister() {
+  if (!canRegister.value || loading.value) return
+  if (regPassword.value !== regConfirm.value) {
+    error.value = '两次输入的密码不一致'
+    return
+  }
+  loading.value = true
+  error.value = ''
+  try {
+    await auth.register(regUsername.value.trim(), regPassword.value, regDisplayName.value.trim())
+    goHome()
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message || '注册失败' : '注册失败，请重试'
+  } finally {
+    loading.value = false
+  }
+}
+
+// #ifdef MP-WEIXIN
+async function retryWx() {
+  wxFailed.value = false
+  const ok = await auth.wxLogin()
+  if (ok) {
+    goHome()
+  } else {
+    wxFailed.value = true
+  }
+}
+
+onMounted(async () => {
+  // hydrate 应该已经调过 wxLogin，如果成功则 App.vue 已跳转
+  // 如果到了这个页面说明失败了
+  if (auth.isAuthenticated) {
+    goHome()
+    return
+  }
+  // 再试一次
+  const ok = await auth.wxLogin()
+  if (ok) {
+    goHome()
+  } else {
+    wxFailed.value = true
+  }
+})
+// #endif
+
+// #ifndef MP-WEIXIN
+onShow(() => {
+  if (auth.isAuthenticated && !auth.mustChangePwd) {
+    uni.reLaunch({ url: auth.PAGE_HOME })
+  }
+})
+// #endif
+
+// ---- Legacy local data detection & export dialog ----
 const LEGACY_KEY = 'POKER_APP_DATA'
 const LEGACY_DISMISSED_KEY = 'LEGACY_EXPORT_DISMISSED'
-
 const showLegacyDialog = ref(false)
 let legacyRaw: string | null = null
 
@@ -110,40 +245,12 @@ function detectLegacy() {
     if (!raw) return
     legacyRaw = typeof raw === 'string' ? raw : JSON.stringify(raw)
     showLegacyDialog.value = true
-  } catch {
-    /* ignore */
-  }
-}
-
-function buildLegacyExport(raw: string): string {
-  // Attempt to shape like original `#HOLDEM#<JSON>#END#`; fall back to raw if malformed.
-  try {
-    const parsed = JSON.parse(raw)
-    const session = parsed?.sessions?.[0] ?? parsed
-    const compact = {
-      v: 1,
-      cv: session.chipValue ?? 200,
-      cm: session.chipMultiplier ?? 1,
-      p: (session.players ?? []).map((pl: any) => ({
-        n: pl.nickname,
-        b: pl.buyInCount,
-        c: pl.chipAmount,
-      })),
-      e: (session.sharedExpenses ?? []).map((ex: any) => ({
-        l: ex.label,
-        a: ex.amount,
-      })),
-    }
-    return `#HOLDEM#${JSON.stringify(compact)}#END#`
-  } catch {
-    return raw
-  }
+  } catch { /* ignore */ }
 }
 
 function exportLegacy() {
   if (!legacyRaw) return
-  const text = buildLegacyExport(legacyRaw)
-  // Try clipboard (native + H5)
+  const text = legacyRaw
   // #ifdef H5
   try {
     const ta = document.createElement('textarea')
@@ -154,7 +261,7 @@ function exportLegacy() {
     document.body.removeChild(ta)
     uni.showToast({ title: '已复制到剪贴板', icon: 'none' })
   } catch {
-    uni.showToast({ title: '复制失败，请手动保存', icon: 'none' })
+    uni.showToast({ title: '复制失败', icon: 'none' })
   }
   // #endif
   // #ifndef H5
@@ -170,20 +277,12 @@ function dismissLegacy() {
   try {
     uni.removeStorageSync(LEGACY_KEY)
     uni.setStorageSync(LEGACY_DISMISSED_KEY, '1')
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
   showLegacyDialog.value = false
 }
 
 onMounted(() => {
   detectLegacy()
-})
-onShow(() => {
-  // If user somehow lands here while already authed, bounce to home.
-  if (auth.isAuthenticated && !auth.mustChangePwd) {
-    uni.reLaunch({ url: auth.PAGE_HOME })
-  }
 })
 </script>
 
@@ -211,10 +310,66 @@ onShow(() => {
   font-size: 26rpx;
   color: #888;
 }
+
+.auto-login {
+  margin-top: 120rpx;
+  text-align: center;
+}
+.loading-text {
+  font-size: 30rpx;
+  color: #888;
+}
+.wx-fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24rpx;
+}
+.fail-text {
+  font-size: 28rpx;
+  color: #e53935;
+}
+.retry-btn {
+  width: 240rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: #1a73e8;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 12rpx;
+}
+
+.tabs {
+  display: flex;
+  gap: 32rpx;
+  margin-top: 48rpx;
+  margin-bottom: 8rpx;
+}
+.tab {
+  font-size: 30rpx;
+  color: #888;
+  padding: 12rpx 0;
+  position: relative;
+}
+.tab.active {
+  color: #1a73e8;
+  font-weight: 600;
+}
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4rpx;
+  background: #1a73e8;
+  border-radius: 2rpx;
+}
+
 .form {
   width: 100%;
   max-width: 640rpx;
-  margin-top: 64rpx;
+  margin-top: 32rpx;
   display: flex;
   flex-direction: column;
   gap: 24rpx;
@@ -252,13 +407,6 @@ onShow(() => {
 }
 .submit[disabled] {
   background: #a8c7f5;
-}
-.hint {
-  margin-top: 48rpx;
-  font-size: 24rpx;
-  color: #999;
-  text-align: center;
-  line-height: 1.6;
 }
 
 .modal-mask {

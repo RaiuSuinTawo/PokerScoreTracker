@@ -14,9 +14,10 @@ datasource db {
 
 model User {
   id            String   @id @default(cuid())
-  username      String   @unique
-  passwordHash  String
-  mustChangePwd Boolean  @default(true)
+  username      String?  @unique
+  passwordHash  String?
+  wxOpenid      String?  @unique
+  mustChangePwd Boolean  @default(false)
   displayName   String
   disabled      Boolean  @default(false)
   createdAt     DateTime @default(now())

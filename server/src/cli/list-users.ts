@@ -25,7 +25,7 @@ async function main() {
     console.log(
       [
         u.id.padEnd(28),
-        u.username.padEnd(20),
+        (u.username ?? '(wx)').padEnd(20),
         u.displayName.padEnd(20),
         `mustChange=${u.mustChangePwd}`.padEnd(20),
         `disabled=${u.disabled}`.padEnd(16),

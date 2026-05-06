@@ -2,6 +2,8 @@
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+
 onLaunch(async () => {
   // #ifdef MP-WEIXIN
   const cloudEnv = import.meta.env?.VITE_CLOUD_ENV as string | undefined
@@ -26,11 +28,24 @@ onLaunch(async () => {
     }
   }
 })
+
 onShow(() => {
-  // placeholder
+  // 全局心跳：每 5 秒调 /auth/me 验证 session 有效性
+  // 如果被踢（tokenVersion 不匹配），http.ts 自动触发 onAuthFailure → 弹回登录页
+  const auth = useAuthStore()
+  if (heartbeatTimer) clearInterval(heartbeatTimer)
+  heartbeatTimer = setInterval(() => {
+    if (auth.isAuthenticated) {
+      auth.refreshMe().catch(() => { /* http.ts handles 401 */ })
+    }
+  }, 5000)
 })
+
 onHide(() => {
-  // placeholder
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
 })
 </script>
 

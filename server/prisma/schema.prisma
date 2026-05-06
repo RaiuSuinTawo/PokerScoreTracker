@@ -20,6 +20,7 @@ model User {
   mustChangePwd Boolean  @default(false)
   displayName   String
   disabled      Boolean  @default(false)
+  tokenVersion  Int      @default(0)
   createdAt     DateTime @default(now())
 
   memberships   Membership[]

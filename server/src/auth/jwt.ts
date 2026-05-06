@@ -23,10 +23,11 @@ if (!REFRESH_SECRET || REFRESH_SECRET.length < 32) {
 export interface AccessPayload {
   sub: string
   username: string
+  tv: number // tokenVersion
 }
 
-export function signAccessToken(user: { id: string; username?: string | null }): string {
-  return jwt.sign({ sub: user.id, username: user.username ?? '' }, ACCESS_SECRET!, {
+export function signAccessToken(user: { id: string; username?: string | null; tokenVersion?: number }): string {
+  return jwt.sign({ sub: user.id, username: user.username ?? '', tv: user.tokenVersion ?? 0 }, ACCESS_SECRET!, {
     expiresIn: ACCESS_TTL,
     algorithm: 'HS256',
   })
@@ -37,7 +38,7 @@ export function verifyAccessToken(token: string): AccessPayload {
   if (!decoded.sub || typeof decoded.sub !== 'string' || typeof decoded.username !== 'string') {
     throw new Error('malformed token')
   }
-  return { sub: decoded.sub, username: decoded.username }
+  return { sub: decoded.sub, username: decoded.username, tv: typeof decoded.tv === 'number' ? decoded.tv : 0 }
 }
 
 export function generateRefreshToken(): string {

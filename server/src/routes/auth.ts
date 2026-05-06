@@ -59,7 +59,7 @@ export async function authRoutes(app: FastifyInstance) {
       })
     }
     const { username, password } = parsed.data
-    const user = await prisma.user.findUnique({ where: { username } })
+    let user = await prisma.user.findUnique({ where: { username } })
     if (!user) {
       return reply.code(401).send({
         error: { code: 'INVALID_CREDENTIALS', message: '账号或密码错误' },
@@ -81,10 +81,14 @@ export async function authRoutes(app: FastifyInstance) {
         error: { code: 'INVALID_CREDENTIALS', message: '账号或密码错误' },
       })
     }
-    // 踢掉其他设备：撤销该用户所有活跃的 refresh token
+    // 踢掉其他设备：递增 tokenVersion 使旧 token 立即失效 + 撤销旧 refresh token
     await prisma.refreshToken.updateMany({
       where: { userId: user.id, revokedAt: null },
       data: { revokedAt: new Date() },
+    })
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { tokenVersion: { increment: 1 } },
     })
     const access = signAccessToken(user)
     const refresh = await issueRefreshToken(user.id)
@@ -248,10 +252,14 @@ export async function authRoutes(app: FastifyInstance) {
       })
     }
 
-    // 踢掉其他设备：撤销该用户所有活跃的 refresh token
+    // 踢掉其他设备：递增 tokenVersion + 撤销旧 refresh token
     await prisma.refreshToken.updateMany({
       where: { userId: user.id, revokedAt: null },
       data: { revokedAt: new Date() },
+    })
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { tokenVersion: { increment: 1 } },
     })
 
     const access = signAccessToken(user)

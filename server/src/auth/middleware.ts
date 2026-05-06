@@ -59,6 +59,7 @@ export function requireAuth(opts: RequireAuthOptions = {}): preHandlerHookHandle
         displayName: true,
         mustChangePwd: true,
         disabled: true,
+        tokenVersion: true,
       },
     })
     if (!user) {
@@ -69,6 +70,12 @@ export function requireAuth(opts: RequireAuthOptions = {}): preHandlerHookHandle
     if (user.disabled) {
       return reply.code(403).send({
         error: { code: 'USER_DISABLED', message: '账号已禁用' },
+      })
+    }
+    // tokenVersion 不匹配 → 该 token 已被新登录作废
+    if (payload.tv !== user.tokenVersion) {
+      return reply.code(401).send({
+        error: { code: 'SESSION_REVOKED', message: '已在其他设备登录，请重新登录' },
       })
     }
     if (user.mustChangePwd && !opts.allowMustChangePwd) {

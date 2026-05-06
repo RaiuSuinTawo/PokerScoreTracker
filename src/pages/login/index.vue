@@ -10,7 +10,17 @@
     <view class="auto-login">
       <text v-if="wxLoading" class="loading-text">正在登录...</text>
       <view v-else class="wx-action">
-        <button class="wx-btn" @click="handleWxLogin">微信一键登录</button>
+        <view class="field wx-field">
+          <text class="label">昵称</text>
+          <input
+            class="input nickname-input"
+            type="nickname"
+            v-model="wxNickname"
+            placeholder="点击使用微信昵称"
+            maxlength="64"
+          />
+        </view>
+        <button class="wx-btn" :disabled="!wxNickname.trim()" @click="handleWxLogin">一键登录</button>
         <text v-if="wxFailed" class="fail-text">登录失败，请重试</text>
       </view>
     </view>
@@ -197,11 +207,17 @@ async function handleRegister() {
 
 // #ifdef MP-WEIXIN
 const wxLoading = ref(false)
+const wxNickname = ref('')
 
 async function handleWxLogin() {
+  const nickname = wxNickname.value.trim()
+  if (!nickname) {
+    uni.showToast({ title: '请输入昵称', icon: 'none' })
+    return
+  }
   wxLoading.value = true
   wxFailed.value = false
-  const ok = await auth.wxLogin()
+  const ok = await auth.wxLogin(nickname)
   wxLoading.value = false
   if (ok) {
     goHome()
@@ -211,7 +227,6 @@ async function handleWxLogin() {
 }
 
 onMounted(async () => {
-  // 如果 hydrate 已经登录成功，直接跳走
   if (auth.isAuthenticated) {
     goHome()
   }
@@ -322,6 +337,14 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 24rpx;
+  width: 100%;
+  max-width: 480rpx;
+}
+.wx-field {
+  width: 100%;
+}
+.nickname-input {
+  text-align: center;
 }
 .wx-btn {
   width: 480rpx;

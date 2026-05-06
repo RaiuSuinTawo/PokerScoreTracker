@@ -117,10 +117,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /** 微信小程序自动登录（云托管注入 X-WX-OPENID） */
-  async function wxLogin(): Promise<boolean> {
+  async function wxLogin(displayName?: string): Promise<boolean> {
     try {
       const res = await request<LoginResponse>('/auth/wx-login', {
         method: 'POST',
+        data: displayName ? { displayName } : undefined,
         skipAuth: true,
         skipAuthHandling: true,
       })

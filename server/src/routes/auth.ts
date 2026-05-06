@@ -215,14 +215,25 @@ export async function authRoutes(app: FastifyInstance) {
       })
     }
 
+    const body = (req.body ?? {}) as { displayName?: string }
+    const displayName = typeof body.displayName === 'string' && body.displayName.trim()
+      ? body.displayName.trim().slice(0, 64)
+      : undefined
+
     let user = await prisma.user.findUnique({ where: { wxOpenid: openid } })
     if (!user) {
       user = await prisma.user.create({
         data: {
           wxOpenid: openid,
-          displayName: '微信用户',
+          displayName: displayName || '微信用户',
           mustChangePwd: false,
         },
+      })
+    } else if (displayName && user.displayName !== displayName) {
+      // 已有用户但昵称变了，更新
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { displayName },
       })
     }
 

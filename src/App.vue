@@ -38,7 +38,7 @@ onShow(() => {
     if (auth.isAuthenticated) {
       auth.refreshMe().catch(() => { /* http.ts handles 401 */ })
     }
-  }, 2000)
+  }, 1000)
 })
 
 onHide(() => {

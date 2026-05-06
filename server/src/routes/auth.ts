@@ -81,6 +81,11 @@ export async function authRoutes(app: FastifyInstance) {
         error: { code: 'INVALID_CREDENTIALS', message: '账号或密码错误' },
       })
     }
+    // 踢掉其他设备：撤销该用户所有活跃的 refresh token
+    await prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
     const access = signAccessToken(user)
     const refresh = await issueRefreshToken(user.id)
     return reply.send({
@@ -242,6 +247,12 @@ export async function authRoutes(app: FastifyInstance) {
         error: { code: 'USER_DISABLED', message: '账号已禁用' },
       })
     }
+
+    // 踢掉其他设备：撤销该用户所有活跃的 refresh token
+    await prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
 
     const access = signAccessToken(user)
     const refresh = await issueRefreshToken(user.id)

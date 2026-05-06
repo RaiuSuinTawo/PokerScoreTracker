@@ -528,12 +528,18 @@ async function doDeleteLedger() {
   border-radius: 20rpx;
 }
 .tag-admin {
-  background: #1a73e8;
-  color: #fff;
+  background: transparent;
+  color: #1a73e8;
+  border: 1rpx solid #1a73e8;
+  font-size: 20rpx;
+  padding: 2rpx 10rpx;
 }
 .tag-player {
-  background: #e8f0fe;
-  color: #1a73e8;
+  background: transparent;
+  color: #888;
+  border: 1rpx solid #ccc;
+  font-size: 20rpx;
+  padding: 2rpx 10rpx;
 }
 .tag-serial {
   background: #fff;

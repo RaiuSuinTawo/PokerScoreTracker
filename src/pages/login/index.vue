@@ -8,10 +8,10 @@
 
     <!-- #ifdef MP-WEIXIN -->
     <view class="auto-login">
-      <text class="loading-text" v-if="!wxFailed">正在登录...</text>
-      <view v-else class="wx-fail">
-        <text class="fail-text">自动登录失败</text>
-        <button class="retry-btn" @click="retryWx">重试</button>
+      <text v-if="wxLoading" class="loading-text">正在登录...</text>
+      <view v-else class="wx-action">
+        <button class="wx-btn" @click="handleWxLogin">微信一键登录</button>
+        <text v-if="wxFailed" class="fail-text">登录失败，请重试</text>
       </view>
     </view>
     <!-- #endif -->
@@ -196,9 +196,13 @@ async function handleRegister() {
 }
 
 // #ifdef MP-WEIXIN
-async function retryWx() {
+const wxLoading = ref(false)
+
+async function handleWxLogin() {
+  wxLoading.value = true
   wxFailed.value = false
   const ok = await auth.wxLogin()
+  wxLoading.value = false
   if (ok) {
     goHome()
   } else {
@@ -207,18 +211,9 @@ async function retryWx() {
 }
 
 onMounted(async () => {
-  // hydrate 应该已经调过 wxLogin，如果成功则 App.vue 已跳转
-  // 如果到了这个页面说明失败了
+  // 如果 hydrate 已经登录成功，直接跳走
   if (auth.isAuthenticated) {
     goHome()
-    return
-  }
-  // 再试一次
-  const ok = await auth.wxLogin()
-  if (ok) {
-    goHome()
-  } else {
-    wxFailed.value = true
   }
 })
 // #endif
@@ -314,19 +309,31 @@ onMounted(() => {
 .auto-login {
   margin-top: 120rpx;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .loading-text {
   font-size: 30rpx;
   color: #888;
 }
-.wx-fail {
+.wx-action {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 24rpx;
 }
+.wx-btn {
+  width: 480rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #07c160;
+  color: #fff;
+  font-size: 32rpx;
+  border-radius: 12rpx;
+}
 .fail-text {
-  font-size: 28rpx;
+  font-size: 26rpx;
   color: #e53935;
 }
 .retry-btn {

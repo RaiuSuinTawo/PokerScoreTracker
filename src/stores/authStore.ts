@@ -102,11 +102,6 @@ export const useAuthStore = defineStore('auth', () => {
         _clear()
       }
     }
-
-    // #ifdef MP-WEIXIN
-    // 小程序：没有有效 token 时自动微信登录
-    await wxLogin()
-    // #endif
   }
 
   // ---- Actions ----

@@ -3,7 +3,7 @@
     <view class="topbar">
       <view>
         <text class="title">我的账本</text>
-        <text class="subtitle">{{ user?.displayName }}（{{ user?.username }}）</text>
+        <text class="subtitle">{{ user?.displayName }}{{ user?.username ? `（${user.username}）` : '' }}</text>
       </view>
       <view class="topbar-actions">
         <button class="logout-btn" size="mini" @click="goProfile">我的</button>

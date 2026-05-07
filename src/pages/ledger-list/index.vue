@@ -3,10 +3,11 @@
     <view class="topbar">
       <view>
         <text class="title">我的账本</text>
-        <text class="subtitle">{{ user?.displayName }}{{ user?.username ? `（${user.username}）` : '' }}</text>
+        <text v-if="auth.isAuthenticated" class="subtitle">{{ user?.displayName }}{{ user?.username ? `（${user.username}）` : '' }}</text>
+        <text v-else class="subtitle not-logged-in">未登录</text>
       </view>
-      <view class="topbar-actions">
-        <button class="logout-btn" size="mini" @click="goProfile">我的</button>
+      <view class="topbar-actions" v-if="auth.isAuthenticated">
+        <button class="logout-btn" size="mini" @click="guardAction(goProfile)">我的</button>
         <button class="logout-btn" size="mini" @click="handleLogout">退出</button>
       </view>
     </view>
@@ -20,11 +21,15 @@
       <view
         class="tab"
         :class="{ active: currentTab === 'archived' }"
-        @click="currentTab = 'archived'"
+        @click="guardAction(() => currentTab = 'archived')"
       >已归档 <text class="count" v-if="store.archived.length">{{ store.archived.length }}</text></view>
     </view>
 
-    <view v-if="store.isLoading && !visibleList.length" class="loading">加载中…</view>
+    <view v-if="!auth.isAuthenticated" class="empty">
+      <text class="empty-icon">♠</text>
+      <text class="empty-text">登录后可创建或加入账本</text>
+    </view>
+    <view v-else-if="store.isLoading && !visibleList.length" class="loading">加载中…</view>
     <view v-else-if="!visibleList.length" class="empty">
       <text class="empty-icon">♠</text>
       <text class="empty-text">{{ currentTab === 'active' ? '还没有账本，点下方按钮创建或加入' : '暂无已归档账本' }}</text>
@@ -40,8 +45,33 @@
     </view>
 
     <view class="fab-row">
-      <button class="fab-btn primary" @click="openCreate">+ 创建账本</button>
-      <button class="fab-btn secondary" @click="openJoin">加入账本</button>
+      <button class="fab-btn primary" @click="guardAction(openCreate)">+ 创建账本</button>
+      <button class="fab-btn secondary" @click="guardAction(openJoin)">加入账本</button>
+    </view>
+
+    <!-- Login modal (MP-WEIXIN) -->
+    <view v-if="showLoginModal" class="modal-mask" @tap="showLoginModal = false">
+      <view class="modal-card" @tap.stop>
+        <text class="modal-title">登录</text>
+        <text class="modal-body">使用微信账号快速登录以使用全部功能</text>
+        <view class="field">
+          <text class="label">昵称</text>
+          <input
+            class="input"
+            type="nickname"
+            v-model="loginNickname"
+            placeholder="点击使用微信昵称"
+            maxlength="64"
+          />
+        </view>
+        <view v-if="loginError" class="error">{{ loginError }}</view>
+        <view class="actions">
+          <button class="btn-secondary" @click="showLoginModal = false">取消</button>
+          <button class="btn-primary" :disabled="!loginNickname.trim() || loginLoading" @click="doLogin">
+            {{ loginLoading ? '登录中…' : '一键登录' }}
+          </button>
+        </view>
+      </view>
     </view>
 
     <!-- Create modal -->
@@ -116,7 +146,6 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 import { useLedgerListStore } from '@/stores/ledgerListStore'
-import { requireAuth } from '@/utils/requireAuth'
 import { ApiError } from '@/utils/http'
 import type { LedgerSummary } from '@/api/types'
 import LedgerCard from '@/components/LedgerCard.vue'
@@ -141,8 +170,47 @@ const joinError = ref('')
 
 const deleteTarget = ref<LedgerSummary | null>(null)
 
+// ---- Login modal state ----
+const showLoginModal = ref(false)
+const loginNickname = ref('')
+const loginError = ref('')
+const loginLoading = ref(false)
+let pendingAction: (() => void) | null = null
+
+/** Guard: if not logged in, show login modal; otherwise execute action */
+function guardAction(action: () => void) {
+  if (auth.isAuthenticated) {
+    action()
+  } else {
+    pendingAction = action
+    loginNickname.value = ''
+    loginError.value = ''
+    showLoginModal.value = true
+  }
+}
+
+async function doLogin() {
+  const nickname = loginNickname.value.trim()
+  if (!nickname) return
+  loginLoading.value = true
+  loginError.value = ''
+  const ok = await auth.wxLogin(nickname)
+  loginLoading.value = false
+  if (ok) {
+    showLoginModal.value = false
+    // 登录成功，刷新数据并执行原操作
+    try { await store.refresh() } catch { /* ignore */ }
+    if (pendingAction) {
+      pendingAction()
+      pendingAction = null
+    }
+  } else {
+    loginError.value = '登录失败，请重试'
+  }
+}
+
 onShow(async () => {
-  if (!requireAuth()) return
+  if (!auth.isAuthenticated) return
   try {
     await store.refresh()
   } catch {
@@ -153,7 +221,7 @@ onShow(async () => {
 async function handleLogout() {
   await auth.logout()
   store.reset()
-  uni.reLaunch({ url: auth.PAGE_LOGIN })
+  // 退出后留在当前页，变为未登录状态
 }
 
 function goProfile() {
@@ -264,6 +332,10 @@ function openLedger(l: LedgerSummary) {
   color: #888;
   margin-top: 4rpx;
   display: block;
+}
+.subtitle.not-logged-in {
+  color: #e53935;
+  font-weight: 600;
 }
 .logout-btn {
   font-size: 24rpx;

@@ -180,7 +180,6 @@ export const useAuthStore = defineStore('auth', () => {
     setTokens: (a, r) => _setTokens(a, r),
     onAuthFailure: async (reason) => {
       if (reason === 'must-change-pwd') {
-        // Soft-redirect so user can change password.
         try {
           uni.reLaunch({ url: PAGE_CHANGE_PWD })
         } catch {
@@ -189,8 +188,9 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
       _clear()
+      // 被踢或 token 失效：回到主页（未登录态），不跳登录页
       try {
-        uni.reLaunch({ url: PAGE_LOGIN })
+        uni.reLaunch({ url: PAGE_HOME })
       } catch {
         /* ignore */
       }

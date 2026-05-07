@@ -1,6 +1,14 @@
 {
   "pages": [
     {
+      "path": "pages/ledger-list/index",
+      "style": {
+        "navigationBarTitleText": "我的账本",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/login/index",
       "style": {
         "navigationBarTitleText": "登录",
@@ -12,14 +20,6 @@
       "path": "pages/change-password/index",
       "style": {
         "navigationBarTitleText": "修改密码",
-        "navigationBarBackgroundColor": "#f5f5f5",
-        "navigationBarTextStyle": "black"
-      }
-    },
-    {
-      "path": "pages/ledger-list/index",
-      "style": {
-        "navigationBarTitleText": "我的账本",
         "navigationBarBackgroundColor": "#f5f5f5",
         "navigationBarTextStyle": "black"
       }

@@ -18,15 +18,8 @@ onLaunch(async () => {
   } catch (e) {
     console.error('[App] auth hydrate failed', e)
   }
-  // Route dispatch: pages.json's first entry is the login page so unauthed users
-  // already land there; if we are authed, hop to home.
-  if (auth.isAuthenticated) {
-    if (auth.mustChangePwd) {
-      uni.reLaunch({ url: auth.PAGE_CHANGE_PWD })
-    } else {
-      uni.reLaunch({ url: auth.PAGE_HOME })
-    }
-  }
+  // 首页就是 ledger-list，无需跳转。
+  // 未登录用户也可以看到主界面（空状态），操作时再触发登录。
 })
 
 onShow(() => {

@@ -85,6 +85,14 @@ const totalSharedExpense = computed(() => settlement.value?.totalSharedExpense ?
 const balanceDiff = computed(() => settlement.value?.balanceDiff ?? 0)
 const isBalanced = computed(() => !!settlement.value?.isBalanced)
 
+const archiveConfirmMessage = computed(() => {
+  const base = `归档后账本将转为只读，所有玩家、公摊、带入申请都不可再修改。`
+  if (!isBalanced.value && balanceDiff.value !== 0) {
+    return `${base}\n\n⚠️ 当前账本未平衡（差值 ${balanceDiff.value}），强制归档后数据将无法修改。\n\n确认归档「${ledger.value?.title}」？`
+  }
+  return `${base}确认归档「${ledger.value?.title}」？`
+})
+
 /** show P/L only when at least one cashout is non-zero */
 const showProfit = computed(() => players.value.some((p) => p.chipAmount !== 0))
 const editingPlayer = computed<Player | null>(() => {
@@ -523,7 +531,7 @@ async function doDeleteLedger() {
     <ConfirmDialog
       v-if="showArchiveConfirm"
       title="归档账本"
-      :message="`归档后账本将转为只读，所有玩家、公摊、带入申请都不可再修改。确认归档「${ledger.title}」？`"
+      :message="archiveConfirmMessage"
       @confirm="doArchive"
       @cancel="showArchiveConfirm = false"
     />

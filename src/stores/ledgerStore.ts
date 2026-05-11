@@ -47,7 +47,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   const canEditChipAmount = computed(() => role.value === 'ADMIN' && !isArchived.value)
   const canDeleteLedger = computed(() => role.value === 'ADMIN')
   const canArchive = computed(
-    () => role.value === 'ADMIN' && !isArchived.value && !!settlement.value?.isBalanced,
+    () => role.value === 'ADMIN' && !isArchived.value,
   )
 
   function canEditNickname(pid: string): boolean {

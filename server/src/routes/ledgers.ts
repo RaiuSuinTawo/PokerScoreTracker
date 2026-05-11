@@ -308,7 +308,7 @@ export async function ledgerRoutes(app: FastifyInstance) {
     },
   )
 
-  // POST /ledgers/:id/archive — admin only; rejects if unbalanced.
+  // POST /ledgers/:id/archive — admin only; allows force archive even if unbalanced.
   app.post(
     '/ledgers/:id/archive',
     {
@@ -339,14 +339,6 @@ export async function ledgerRoutes(app: FastifyInstance) {
         ledgerRow!.chipValue,
         ledgerRow!.chipMultiplier,
       )
-      if (!settlement.isBalanced) {
-        return reply.code(409).send({
-          error: {
-            code: 'LEDGER_UNBALANCED',
-            message: `账本未平衡（差值 ${settlement.balanceDiff}），无法归档`,
-          },
-        })
-      }
       await prisma.$transaction(async (tx) => {
         await tx.ledger.update({
           where: { id: ledgerId },

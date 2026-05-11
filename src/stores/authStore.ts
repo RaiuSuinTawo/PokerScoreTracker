@@ -97,9 +97,18 @@ export const useAuthStore = defineStore('auth', () => {
         return
       } catch (err) {
         if (err instanceof ApiError) {
-          // http.ts already cleared & redirected on hard failures; just swallow here
+          // http.ts already called onAuthFailure for hard 401s (token invalid/revoked).
+          // Only clear local state if it was a definitive auth error (4xx),
+          // NOT on network failures (5xx / unknown) — those are transient.
+          if (err.status >= 400 && err.status < 500) {
+            _clear()
+          }
+          // For 5xx: keep local tokens, the user can retry on next navigation.
+        } else {
+          // Network error (no response) — do NOT clear tokens.
+          // The user may just have a momentary connectivity issue.
+          console.warn('[auth] hydrate network error, keeping session', err)
         }
-        _clear()
       }
     }
   }

@@ -270,23 +270,19 @@ async function onChipMultiplierUpdate(v: number) {
 }
 
 /**
- * Admin +/- behaviour:
- *   '+' → open RequestBuyInModal for the targeted player with autoApprove=true
- *         if it's admin-self; otherwise admin still goes through the request
- *         table (auto-approved only for their own row per D3). In practice
- *         admins will usually click '+' on their own row to track their re-buys.
- *   '-' → not exposed in v1 (corrections go through reject/cancel of prior
- *         requests or admin-side DB if truly needed).
+ * Self-service buy-in:
+ *   '+' → open modal in 'add' mode
+ *   '-' → open modal in 'remove' mode
  */
+const buyInMode = ref<'add' | 'remove'>('add')
+
 async function directAdjustBuyIn(playerId: string, delta: 1 | -1) {
-  if (delta !== 1) {
-    uni.showToast({ title: '减手数请在收件箱中处理对应申请', icon: 'none' })
-    return
-  }
+  buyInMode.value = delta === 1 ? 'add' : 'remove'
   openBuyInModal(playerId)
 }
 
 function requestBuyIn(playerId: string) {
+  buyInMode.value = 'add'
   openBuyInModal(playerId)
 }
 
@@ -301,24 +297,20 @@ const buyInTargetNickname = computed(() => {
   return players.value.find((p) => p.id === id)?.nickname ?? ''
 })
 
-const buyInAutoApprove = computed(
-  () => store.role === 'ADMIN' && buyInTargetPlayerId.value === store.myPlayerId,
-)
-
 async function submitBuyIn(payload: { hands: number; note?: string }) {
   submittingBuyIn.value = true
   try {
-    const r = await store.requestBuyIn(payload.hands, payload.note)
+    await store.requestBuyIn(payload.hands, payload.note)
     showBuyInModal.value = false
     buyInTargetPlayerId.value = null
     uni.showToast({
-      title: r.status === 'APPROVED' ? '已加入' : '已发送申请',
+      title: payload.hands > 0 ? '已带入' : '已减少',
       icon: 'none',
       duration: 1500,
     })
   } catch (err) {
     uni.showToast({
-      title: err instanceof ApiError ? err.message : '发送失败',
+      title: err instanceof ApiError ? err.message : '操作失败',
       icon: 'none',
     })
   } finally {
@@ -414,8 +406,7 @@ async function doDeleteLedger() {
       <view class="meta-right">
         <button class="icon-btn" size="mini" @click="goBack">返回</button>
         <view class="icon-btn-wrap" @click="goToBuyInRequests">
-          <button class="icon-btn" size="mini">申请</button>
-          <text v-if="store.pendingCount > 0" class="badge-dot">{{ store.pendingCount }}</text>
+          <button class="icon-btn" size="mini">记录</button>
         </view>
         <button
           v-if="store.canDeleteLedger"
@@ -483,8 +474,7 @@ async function doDeleteLedger() {
     <!-- Footer actions -->
     <view class="footer-actions">
       <view class="footer-btn-wrap" @click="goToBuyInRequests">
-        <button class="footer-btn secondary">带入申请</button>
-        <text v-if="store.pendingCount > 0" class="badge-dot footer-badge">{{ store.pendingCount }}</text>
+        <button class="footer-btn secondary">带入记录</button>
       </view>
       <button class="footer-btn" @click="goToSharedExpense">公摊开销</button>
       <button
@@ -512,7 +502,7 @@ async function doDeleteLedger() {
     <RequestBuyInModal
       v-if="showBuyInModal"
       :nickname="buyInTargetNickname"
-      :auto-approve="buyInAutoApprove"
+      :mode="buyInMode"
       :submitting="submittingBuyIn"
       @submit="submitBuyIn"
       @cancel="cancelBuyIn"

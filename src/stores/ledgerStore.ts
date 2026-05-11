@@ -59,8 +59,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   /** Decide the UX mode for the +/- stepper on a player row. */
   function buyInControlMode(pid: string): 'direct' | 'request' | 'none' {
     if (isArchived.value) return 'none'
-    if (role.value === 'ADMIN') return 'direct'
-    if (pid === myPlayerId.value) return 'request'
+    if (pid === myPlayerId.value) return 'direct'
     return 'none'
   }
 

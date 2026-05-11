@@ -1,21 +1,15 @@
 /**
- * Buy-in request flow.
- * See EXPANSION_PLAN.md §6.4 and §8 Phase 5.
+ * Buy-in request flow — self-service (no admin approval).
  *
  * Rules:
  *  - POST  /ledgers/:id/buy-in-requests
- *      Creates a PENDING request for the requester's own Player row.
- *      If requester is the ledger admin AND target player is their own
- *      player row, auto-approve in the same transaction (D3).
- *  - GET   /ledgers/:id/buy-in-requests?status=PENDING
- *      Admin: sees every request for the ledger.
- *      Player: sees only own.
- *  - POST  /buy-in-requests/:rid/approve
- *      Admin-only. Tx: mark APPROVED + increment buyInCount + emit event.
- *  - POST  /buy-in-requests/:rid/reject
- *      Admin-only. Tx: mark REJECTED with optional reason + emit event.
- *  - POST  /buy-in-requests/:rid/cancel
- *      Requester-only, PENDING only.
+ *      Creates an auto-approved request for the requester's own Player row.
+ *      Supports positive (buy-in) and negative (buy-out) hands.
+ *      buyInCount is immediately updated in the same transaction.
+ *  - GET   /ledgers/:id/buy-in-requests?status=
+ *      Returns request history for all members.
+ *  - POST  /buy-in-requests/:rid/approve|reject|cancel
+ *      Kept for backward compatibility with any legacy PENDING requests.
  */
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
@@ -26,7 +20,7 @@ import { emitEvent } from '../events/emit.js'
 import { LedgerEventType, ReqStatus, Role } from '../types.js'
 
 const createBody = z.object({
-  hands: z.number().int().min(1).max(1000),
+  hands: z.number().int().refine((h) => h !== 0, { message: '手数不能为0' }),
   note: z.string().trim().max(120).optional(),
 })
 
@@ -85,10 +79,18 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
         })
       }
       const { hands, note } = parsed.data
-      const isAdminSelf =
-        req.membership!.role === Role.ADMIN && req.membership!.playerId === playerId
 
-      // Transaction: create request; if admin-self, also approve + increment buyIn.
+      // For negative hands (buy-out), check that buyInCount won't go below 0
+      if (hands < 0) {
+        const player = await prisma.player.findUnique({ where: { id: playerId }, select: { buyInCount: true } })
+        if (!player || player.buyInCount + hands < 0) {
+          return reply.code(409).send({
+            error: { code: 'INSUFFICIENT_BUY_IN', message: '手数不足，无法减少' },
+          })
+        }
+      }
+
+      // All requests are auto-approved: create + increment buyInCount in one transaction
       const result = await prisma.$transaction(async (tx) => {
         const created = await tx.buyInRequest.create({
           data: {
@@ -97,32 +99,23 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
             requestedById: req.auth!.userId,
             hands,
             note: note ?? null,
-            status: isAdminSelf ? ReqStatus.APPROVED : ReqStatus.PENDING,
-            decidedById: isAdminSelf ? req.auth!.userId : null,
-            decidedAt: isAdminSelf ? new Date() : null,
+            status: ReqStatus.APPROVED,
+            decidedById: req.auth!.userId,
+            decidedAt: new Date(),
           },
         })
-        if (isAdminSelf) {
-          await tx.player.update({
-            where: { id: playerId },
-            data: { buyInCount: { increment: hands } },
-          })
-          await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_DECIDED, {
-            requestId: created.id,
-            playerId,
-            hands,
-            status: ReqStatus.APPROVED,
-            auto: true,
-            by: req.auth!.userId,
-          })
-        } else {
-          await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_REQUESTED, {
-            requestId: created.id,
-            playerId,
-            hands,
-            by: req.auth!.userId,
-          })
-        }
+        await tx.player.update({
+          where: { id: playerId },
+          data: { buyInCount: { increment: hands } },
+        })
+        await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_DECIDED, {
+          requestId: created.id,
+          playerId,
+          hands,
+          status: ReqStatus.APPROVED,
+          auto: true,
+          by: req.auth!.userId,
+        })
         return created
       })
       return reply.code(201).send({ request: reqDTO(result) })
@@ -141,9 +134,7 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
       if (parsedQuery.success && parsedQuery.data.status) {
         where.status = parsedQuery.data.status
       }
-      if (req.membership!.role !== Role.ADMIN) {
-        where.requestedById = req.auth!.userId
-      }
+      // All members can see all requests (history is shared)
       const rows = await prisma.buyInRequest.findMany({
         where,
         orderBy: { createdAt: 'desc' },

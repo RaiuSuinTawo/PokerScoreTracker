@@ -1,22 +1,19 @@
 <script setup lang="ts">
 /**
- * Composer for a buy-in request (player-facing, or admin-self shortcut).
- * See EXPANSION_PLAN.md §8 Phase 5.
- *
- * Emits `submit({ hands, note? })` for the parent (detail page) to wire
- * through ledgerStore.requestBuyIn.
+ * Buy-in modal — self-service (no approval needed).
+ * Supports both adding (+) and removing (-) hands.
  */
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    autoApprove?: boolean
     nickname: string
     submitting?: boolean
+    mode?: 'add' | 'remove'
   }>(),
   {
-    autoApprove: false,
     submitting: false,
+    mode: 'add',
   },
 )
 
@@ -28,6 +25,8 @@ const emit = defineEmits<{
 const hands = ref('1')
 const note = ref('')
 
+const isRemove = computed(() => props.mode === 'remove')
+
 function bump(delta: number) {
   const v = Number(hands.value) || 0
   const next = Math.max(1, Math.min(1000, v + delta))
@@ -37,7 +36,7 @@ function bump(delta: number) {
 function submit() {
   const n = Math.max(1, Math.min(1000, Math.round(Number(hands.value) || 0)))
   emit('submit', {
-    hands: n,
+    hands: isRemove.value ? -n : n,
     note: note.value.trim() || undefined,
   })
 }
@@ -46,15 +45,11 @@ function submit() {
 <template>
   <view class="modal-mask" @click="emit('cancel')">
     <view class="modal-card" @click.stop>
-      <text class="modal-title">请求带入</text>
-      <text class="modal-sub">
-        {{ nickname }}
-        <text v-if="autoApprove" class="auto-badge">自动批准</text>
-        <text v-else class="pending-badge">待管理员审批</text>
-      </text>
+      <text class="modal-title">{{ isRemove ? '减少带入' : '增加带入' }}</text>
+      <text class="modal-sub">{{ nickname }}</text>
 
       <view class="field">
-        <text class="label">增加手数</text>
+        <text class="label">{{ isRemove ? '减少手数' : '增加手数' }}</text>
         <view class="stepper">
           <text class="btn-round" @click="bump(-1)">−</text>
           <input v-model="hands" class="hands-input" type="number" />
@@ -69,8 +64,12 @@ function submit() {
 
       <view class="actions">
         <button class="btn-secondary" :disabled="submitting" @click="emit('cancel')">取消</button>
-        <button class="btn-primary" :disabled="submitting" @click="submit">
-          {{ submitting ? '提交中…' : autoApprove ? '直接加入' : '发送申请' }}
+        <button
+          :class="isRemove ? 'btn-danger' : 'btn-primary'"
+          :disabled="submitting"
+          @click="submit"
+        >
+          {{ submitting ? '提交中…' : isRemove ? '确认减少' : '确认带入' }}
         </button>
       </view>
     </view>
@@ -106,24 +105,6 @@ function submit() {
   font-size: 26rpx;
   color: #555;
   text-align: center;
-  display: flex;
-  gap: 8rpx;
-  justify-content: center;
-  align-items: center;
-}
-.auto-badge {
-  background: #1a73e8;
-  color: #fff;
-  font-size: 22rpx;
-  padding: 2rpx 12rpx;
-  border-radius: 20rpx;
-}
-.pending-badge {
-  background: #ff9800;
-  color: #fff;
-  font-size: 22rpx;
-  padding: 2rpx 12rpx;
-  border-radius: 20rpx;
 }
 .field {
   display: flex;
@@ -180,6 +161,7 @@ function submit() {
   margin-top: 8rpx;
 }
 .btn-primary,
+.btn-danger,
 .btn-secondary {
   flex: 1;
   height: 76rpx;
@@ -193,6 +175,13 @@ function submit() {
 }
 .btn-primary[disabled] {
   background: #a8c7f5;
+}
+.btn-danger {
+  background: #e53935;
+  color: #fff;
+}
+.btn-danger[disabled] {
+  background: #ef9a9a;
 }
 .btn-secondary {
   background: #f0f0f0;

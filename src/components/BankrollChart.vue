@@ -1,13 +1,12 @@
 <script setup lang="ts">
 /**
- * Lightweight bankroll line chart.
- * See EXPANSION_PLAN.md §7.9 — we chose to self-implement to avoid the
- * ~80KB qiun-data-charts dependency for a single page.
+ * Lightweight bankroll line chart — enhanced version.
  *
- *  - Draws cumulative-net line over archived ledgers.
- *  - Axis: zero baseline highlighted; auto-range padded 10%.
- *  - Points marked; tap a point forwards via `point-tap` emit.
- *  - Uses uni.createCanvasContext — works on mp-weixin and H5.
+ * Features:
+ *  - Nice integer Y-axis ticks with gridlines
+ *  - Per-point date labels on X-axis (with collision avoidance)
+ *  - Touch interaction: drag to see specific point values (tooltip)
+ *  - Zero baseline highlighted
  */
 import { onMounted, watch, ref, nextTick, getCurrentInstance } from 'vue'
 import type { BankrollPoint } from '@/api/types'
@@ -30,15 +29,28 @@ defineEmits<{
 
 const instance = getCurrentInstance()
 
-// Rough pixel dimensions read via uni.getSystemInfoSync.windowWidth × ratio.
 const canvasWidthPx = ref(320)
 const canvasHeightPx = ref(200)
+
+// Layout state shared between draw() and touch handlers
+const layout = ref({
+  padL: 50,
+  padR: 16,
+  padT: 24,
+  padB: 36,
+  chartW: 0,
+  chartH: 0,
+  yMin: 0,
+  yRange: 1,
+})
+
+// Touch interaction state
+const activePointIndex = ref<number | null>(null)
 
 function computeDimensions() {
   try {
     const sys = uni.getSystemInfoSync()
-    // page padding 32rpx on each side → subtract roughly
-    const w = sys.windowWidth - 32 // px; simple and close enough
+    const w = sys.windowWidth - 32
     canvasWidthPx.value = Math.max(280, w)
     const rpx2px = sys.windowWidth / 750
     canvasHeightPx.value = Math.round(props.height * rpx2px)
@@ -48,16 +60,65 @@ function computeDimensions() {
   }
 }
 
-function draw() {
-  // In mp-weixin, createCanvasContext inside a component needs the component
-  // instance as second argument; otherwise the canvas lookup fails silently.
+/**
+ * Compute nice integer tick marks for a given range.
+ */
+function niceRange(minV: number, maxV: number, tickCount = 5) {
+  if (minV === maxV) {
+    // All values are the same
+    const v = minV
+    if (v === 0) return { niceMin: -1, niceMax: 1, ticks: [-1, 0, 1] }
+    const step = Math.pow(10, Math.floor(Math.log10(Math.abs(v))))
+    return {
+      niceMin: Math.floor(v / step) * step - step,
+      niceMax: Math.ceil(v / step) * step + step,
+      ticks: [Math.floor(v / step) * step - step, Math.round(v), Math.ceil(v / step) * step + step],
+    }
+  }
+
+  const span = maxV - minV
+  const rawStep = span / tickCount
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+  const niceFractions = [1, 2, 5, 10]
+  const niceStep = niceFractions.map((f) => f * magnitude).find((s) => s >= rawStep) ?? magnitude * 10
+
+  const niceMin = Math.floor(minV / niceStep) * niceStep
+  const niceMax = Math.ceil(maxV / niceStep) * niceStep
+
+  const ticks: number[] = []
+  for (let t = niceMin; t <= niceMax + niceStep * 0.01; t += niceStep) {
+    ticks.push(Math.round(t))
+  }
+  return { niceMin, niceMax, ticks }
+}
+
+function xAt(i: number): number {
+  const pts = props.points
+  if (pts.length <= 1) return layout.value.padL + layout.value.chartW / 2
+  return layout.value.padL + (i / (pts.length - 1)) * layout.value.chartW
+}
+
+function yAt(v: number): number {
+  const { padT, chartH, yMin, yRange } = layout.value
+  return padT + (1 - (v - yMin) / yRange) * chartH
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+function draw(highlightIdx: number | null = null) {
   const ctx = uni.createCanvasContext(props.canvasId, instance)
   const W = canvasWidthPx.value
   const H = canvasHeightPx.value
-  const padL = 44
-  const padR = 16
-  const padT = 16
-  const padB = 28
+  const { padL, padR, padT, padB } = layout.value
+
+  const chartW = W - padL - padR
+  const chartH = H - padT - padB
+  layout.value.chartW = chartW
+  layout.value.chartH = chartH
 
   // Clear
   ctx.setFillStyle('#ffffff')
@@ -73,62 +134,51 @@ function draw() {
     return
   }
 
-  // Range
+  // Compute nice Y range
   const values = pts.map((p) => p.cumulative)
-  const minV = Math.min(0, ...values)
-  const maxV = Math.max(0, ...values)
-  const span = maxV - minV || 1
-  const pad = span * 0.1
-  const yMin = minV - pad
-  const yMax = maxV + pad
-  const yRange = yMax - yMin || 1
+  const dataMin = Math.min(0, ...values)
+  const dataMax = Math.max(0, ...values)
+  const { niceMin, niceMax, ticks } = niceRange(dataMin, dataMax, 4)
 
-  const chartW = W - padL - padR
-  const chartH = H - padT - padB
+  layout.value.yMin = niceMin
+  layout.value.yRange = niceMax - niceMin || 1
 
-  function xAt(i: number): number {
-    if (pts.length === 1) return padL + chartW / 2
-    return padL + (i / (pts.length - 1)) * chartW
+  // Draw Y-axis gridlines and labels
+  ctx.setFontSize(10)
+  ctx.setTextAlign('right')
+  for (const tick of ticks) {
+    const y = yAt(tick)
+    // Gridline
+    if (tick === 0) {
+      ctx.setStrokeStyle('#90a4ae')
+      ctx.setLineWidth(1)
+    } else {
+      ctx.setStrokeStyle('#e0e0e0')
+      ctx.setLineWidth(0.5)
+    }
+    // Dashed line
+    ctx.beginPath()
+    const step = tick === 0 ? 6 : 4
+    let x = padL
+    while (x < padL + chartW) {
+      ctx.moveTo(x, y)
+      ctx.lineTo(Math.min(x + step, padL + chartW), y)
+      x += step * 2
+    }
+    ctx.stroke()
+
+    // Label
+    ctx.setFillStyle(tick === 0 ? '#555555' : '#888888')
+    ctx.fillText(String(tick), padL - 6, y + 3)
   }
-  function yAt(v: number): number {
-    return padT + (1 - (v - yMin) / yRange) * chartH
-  }
 
-  // Axis frame
-  ctx.setStrokeStyle('#eeeeee')
+  // Y axis vertical line
+  ctx.setStrokeStyle('#e0e0e0')
   ctx.setLineWidth(1)
   ctx.beginPath()
   ctx.moveTo(padL, padT)
   ctx.lineTo(padL, padT + chartH)
-  ctx.lineTo(padL + chartW, padT + chartH)
   ctx.stroke()
-
-  // Zero baseline (if in range)
-  if (yMin < 0 && yMax > 0) {
-    const y0 = yAt(0)
-    ctx.setStrokeStyle('#cfd8dc')
-    ctx.setLineWidth(1)
-    // dashed approximation: short segments
-    const step = 6
-    let x = padL
-    ctx.beginPath()
-    while (x < padL + chartW) {
-      ctx.moveTo(x, y0)
-      ctx.lineTo(Math.min(x + step, padL + chartW), y0)
-      x += step * 2
-    }
-    ctx.stroke()
-  }
-
-  // Y axis labels (min / max / 0 if inside)
-  ctx.setFillStyle('#888888')
-  ctx.setFontSize(10)
-  ctx.setTextAlign('right')
-  ctx.fillText(String(Math.round(yMax)), padL - 4, padT + 10)
-  ctx.fillText(String(Math.round(yMin)), padL - 4, padT + chartH)
-  if (yMin < 0 && yMax > 0) {
-    ctx.fillText('0', padL - 4, yAt(0) + 3)
-  }
 
   // Line
   ctx.setStrokeStyle('#1a73e8')
@@ -142,7 +192,7 @@ function draw() {
   })
   ctx.stroke()
 
-  // Fill area below/above zero for emphasis (soft)
+  // Fill area below line
   ctx.setFillStyle('rgba(26,115,232,0.08)')
   ctx.beginPath()
   pts.forEach((p, i) => {
@@ -160,35 +210,119 @@ function draw() {
   pts.forEach((p, i) => {
     const x = xAt(i)
     const y = yAt(p.cumulative)
+    const isHighlighted = i === highlightIdx
+    const radius = isHighlighted ? 5 : 3
+    if (isHighlighted) {
+      // White ring
+      ctx.setFillStyle('#ffffff')
+      ctx.beginPath()
+      ctx.arc(x, y, radius + 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
     ctx.setFillStyle(p.cumulative >= 0 ? '#e53935' : '#2e7d32')
     ctx.beginPath()
-    ctx.arc(x, y, 3, 0, Math.PI * 2)
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fill()
   })
 
-  // X axis labels: first / last date
+  // X-axis date labels (per-point with collision avoidance)
   ctx.setFillStyle('#888888')
   ctx.setFontSize(10)
-  function shortDate(iso: string): string {
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return ''
-    return `${d.getMonth() + 1}/${d.getDate()}`
-  }
-  ctx.setTextAlign('left')
-  ctx.fillText(shortDate(pts[0].at), padL, padT + chartH + 14)
-  if (pts.length > 1) {
-    ctx.setTextAlign('right')
-    ctx.fillText(shortDate(pts[pts.length - 1].at), padL + chartW, padT + chartH + 14)
+  ctx.setTextAlign('center')
+  let lastLabelX = -999
+  pts.forEach((p, i) => {
+    const x = xAt(i)
+    if (x - lastLabelX < 30) return // skip if too close
+    ctx.fillText(shortDate(p.at), x, padT + chartH + 14)
+    lastLabelX = x
+  })
+
+  // Highlight overlay
+  if (highlightIdx !== null && highlightIdx >= 0 && highlightIdx < pts.length) {
+    const p = pts[highlightIdx]
+    const hx = xAt(highlightIdx)
+    const hy = yAt(p.cumulative)
+
+    // Vertical hairline
+    ctx.setStrokeStyle('rgba(26,115,232,0.4)')
+    ctx.setLineWidth(1)
+    ctx.beginPath()
+    ctx.moveTo(hx, padT)
+    ctx.lineTo(hx, padT + chartH)
+    ctx.stroke()
+
+    // Tooltip
+    const lines = [p.ledgerTitle, `本场: ${p.perLedgerNet >= 0 ? '+' : ''}${p.perLedgerNet}`, `累计: ${p.cumulative}`]
+    const tooltipW = 120
+    const tooltipH = 48
+    let tx = hx - tooltipW / 2
+    if (tx < padL) tx = padL
+    if (tx + tooltipW > padL + chartW) tx = padL + chartW - tooltipW
+    let ty = hy - tooltipH - 12
+    if (ty < 4) ty = hy + 12
+
+    // Tooltip background
+    ctx.setFillStyle('rgba(50,50,50,0.9)')
+    ctx.beginPath()
+    ctx.fillRect(tx, ty, tooltipW, tooltipH)
+    ctx.fill()
+
+    // Tooltip text
+    ctx.setFillStyle('#ffffff')
+    ctx.setFontSize(10)
+    ctx.setTextAlign('left')
+    lines.forEach((line, li) => {
+      ctx.fillText(line, tx + 6, ty + 13 + li * 14)
+    })
   }
 
   ctx.draw()
 }
 
+// Touch handlers
+function findNearestIndex(touchX: number): number | null {
+  const pts = props.points
+  if (pts.length === 0) return null
+  let closest = 0
+  let minDist = Infinity
+  for (let i = 0; i < pts.length; i++) {
+    const d = Math.abs(xAt(i) - touchX)
+    if (d < minDist) {
+      minDist = d
+      closest = i
+    }
+  }
+  return closest
+}
+
+function onTouchStart(e: any) {
+  const touch = e.touches?.[0]
+  if (!touch) return
+  const x = touch.x ?? touch.clientX ?? 0
+  activePointIndex.value = findNearestIndex(x)
+  draw(activePointIndex.value)
+}
+
+function onTouchMove(e: any) {
+  const touch = e.touches?.[0]
+  if (!touch) return
+  const x = touch.x ?? touch.clientX ?? 0
+  const idx = findNearestIndex(x)
+  if (idx !== activePointIndex.value) {
+    activePointIndex.value = idx
+    draw(activePointIndex.value)
+  }
+}
+
+function onTouchEnd() {
+  activePointIndex.value = null
+  draw(null)
+}
+
 async function redraw() {
   computeDimensions()
   await nextTick()
-  // Give canvas element time to flush in the native layer (mp-weixin needs ~150ms)
-  setTimeout(() => draw(), 150)
+  setTimeout(() => draw(null), 150)
 }
 
 onMounted(() => {
@@ -212,6 +346,9 @@ watch(
         width: canvasWidthPx + 'px',
         height: canvasHeightPx + 'px',
       }"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
     />
   </view>
 </template>

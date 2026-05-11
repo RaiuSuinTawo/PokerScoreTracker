@@ -3,7 +3,7 @@
  * Profile page — ledger history + bankroll curve.
  * See EXPANSION_PLAN.md §8 Phase 7.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 import { useProfileStore } from '@/stores/profileStore'
@@ -21,6 +21,23 @@ const finalBankroll = computed(() => store.finalBankroll)
 const finalBankrollColor = computed(() =>
   finalBankroll.value > 0 ? '#e53935' : finalBankroll.value < 0 ? '#2e7d32' : '#888',
 )
+
+const range = ref<'7' | '30' | 'all'>('all')
+
+const visiblePoints = computed(() => {
+  if (range.value === 'all') return store.points
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - (range.value === '7' ? 7 : 30))
+  const iso = cutoff.toISOString()
+  const filtered = store.points.filter((p) => p.at >= iso)
+  // Recompute cumulative based on filtered subset
+  if (filtered.length === 0) return filtered
+  let cumulative = 0
+  return filtered.map((p) => {
+    cumulative += p.perLedgerNet
+    return { ...p, cumulative }
+  })
+})
 
 onShow(async () => {
   if (!requireAuth()) return
@@ -93,11 +110,25 @@ function formatDate(iso: string | null): string {
     <view class="card">
       <text class="card-title">Bankroll 曲线</text>
       <text class="card-sub">仅统计已归档账本，按归档时间升序累加</text>
-      <view class="chart-slot">
-        <BankrollChart :points="store.points" />
+      <view class="filter-row">
+        <text
+          :class="['filter-btn', range === '7' && 'active']"
+          @click="range = '7'"
+        >近七天</text>
+        <text
+          :class="['filter-btn', range === '30' && 'active']"
+          @click="range = '30'"
+        >近三十天</text>
+        <text
+          :class="['filter-btn', range === 'all' && 'active']"
+          @click="range = 'all'"
+        >全部</text>
       </view>
-      <view v-if="store.points.length === 0" class="chart-empty">
-        <text>归档账本后会自动累计到此处</text>
+      <view class="chart-slot">
+        <BankrollChart :points="visiblePoints" />
+      </view>
+      <view v-if="visiblePoints.length === 0" class="chart-empty">
+        <text>{{ range === 'all' ? '归档账本后会自动累计到此处' : '该时间范围内无数据' }}</text>
       </view>
     </view>
 
@@ -226,6 +257,22 @@ function formatDate(iso: string | null): string {
 }
 .chart-slot {
   margin-top: 16rpx;
+}
+.filter-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+.filter-btn {
+  font-size: 24rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+  background: #f5f5f5;
+  color: #666;
+}
+.filter-btn.active {
+  background: #1a73e8;
+  color: #fff;
 }
 .chart-empty {
   padding: 60rpx 0;

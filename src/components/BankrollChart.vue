@@ -44,7 +44,7 @@ const canvasHeightPx = ref(200)
 // Layout state shared between draw() and touch handlers
 const layout = ref({
   padL: 50,
-  padR: 20,
+  padR: 28,
   padT: 24,
   padB: 36,
   chartW: 0,
@@ -298,29 +298,47 @@ function draw(highlightIdx: number | null = null) {
     ctx.lineTo(hx, padT + chartH)
     ctx.stroke()
 
-    // Tooltip content
-    const titleLine = p.titles.length <= 2 ? p.titles.join(', ') : `${p.titles[0]} 等${p.titles.length}场`
-    const lines = [
-      shortDate(p.date) + ' ' + titleLine,
-      `当日: ${p.dayNet >= 0 ? '+' : ''}${p.dayNet}`,
-      `累计: ${p.cumulative}`,
-    ]
-    const tooltipW = 130
-    const tooltipH = 48
+    // Build tooltip lines
+    const lines: string[] = []
+    lines.push(shortDate(p.date))                           // date header
+    for (const t of p.titles) {
+      lines.push('  ' + t)                                  // indented session names
+    }
+    if (p.titles.length === 0) {
+      lines.push('  (无归档)')
+    }
+    lines.push(`当日: ${p.dayNet >= 0 ? '+' : ''}${p.dayNet}`)
+    lines.push(`累计: ${p.cumulative}`)
+
+    const lineHeight = 14
+    const tooltipPadX = 8
+    const tooltipPadY = 8
+    const tooltipW = 120
+    const tooltipH = tooltipPadY * 2 + lines.length * lineHeight
+
     let tx = hx - tooltipW / 2
     if (tx < padL) tx = padL
     if (tx + tooltipW > padL + chartW) tx = padL + chartW - tooltipW
     let ty = hy - tooltipH - 12
     if (ty < 4) ty = hy + 12
 
-    ctx.setFillStyle('rgba(50,50,50,0.9)')
+    // Background with rounded feel
+    ctx.setFillStyle('rgba(50,50,50,0.92)')
     ctx.fillRect(tx, ty, tooltipW, tooltipH)
 
-    ctx.setFillStyle('#ffffff')
+    // Text
     ctx.setFontSize(10)
     ctx.setTextAlign('left')
     lines.forEach((line, li) => {
-      ctx.fillText(line, tx + 6, ty + 13 + li * 14)
+      // Date header in bold-ish white, session names slightly dimmer
+      if (li === 0) {
+        ctx.setFillStyle('#ffffff')
+      } else if (li < lines.length - 2) {
+        ctx.setFillStyle('#cccccc')
+      } else {
+        ctx.setFillStyle('#ffffff')
+      }
+      ctx.fillText(line, tx + tooltipPadX, ty + tooltipPadY + (li + 1) * lineHeight - 2)
     })
   }
 

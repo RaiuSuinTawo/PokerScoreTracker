@@ -53,8 +53,17 @@ const chartData = computed<{ points: ChartPoint[]; startDate: string; endDate: s
   }
   const endDate = todayKey
 
-  // Filter raw points within range
-  const filtered = raw.filter((p) => toDateKey(new Date(p.at)) >= startDate)
+  // Split raw points into before-range (for baseline) and in-range
+  let baselineCumulative = 0
+  const filtered: typeof raw = []
+  for (const p of raw) {
+    const key = toDateKey(new Date(p.at))
+    if (key < startDate) {
+      baselineCumulative = Math.round((baselineCumulative + p.perLedgerNet) * 100) / 100
+    } else {
+      filtered.push(p)
+    }
+  }
 
   // Aggregate by day: sum perLedgerNet per day, collect titles
   const dayMap = new Map<string, { dayNet: number; titles: string[] }>()
@@ -71,8 +80,8 @@ const chartData = computed<{ points: ChartPoint[]; startDate: string; endDate: s
 
   // Build cumulative chart points sorted by date
   const sortedDays = [...dayMap.keys()].sort()
-  let cumulative = 0
-  const points: ChartPoint[] = sortedDays.map((day) => {
+  let cumulative = baselineCumulative
+  const dataPoints: ChartPoint[] = sortedDays.map((day) => {
     const entry = dayMap.get(day)!
     cumulative = Math.round((cumulative + entry.dayNet) * 100) / 100
     return {
@@ -82,6 +91,22 @@ const chartData = computed<{ points: ChartPoint[]; startDate: string; endDate: s
       titles: entry.titles,
     }
   })
+
+  // For 7d/30d mode, always insert a start-edge point showing the baseline
+  const points: ChartPoint[] = []
+  if (range.value !== 'all') {
+    // Add a start point at the range boundary with baseline cumulative
+    const needsStartPoint = dataPoints.length === 0 || dataPoints[0].date !== startDate
+    if (needsStartPoint) {
+      points.push({
+        date: startDate,
+        dayNet: 0,
+        cumulative: baselineCumulative,
+        titles: [],
+      })
+    }
+  }
+  points.push(...dataPoints)
 
   return { points, startDate, endDate }
 })

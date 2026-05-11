@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useProfileStore } from '@/stores/profileStore'
 import { requireAuth } from '@/utils/requireAuth'
 import BankrollChart from '@/components/BankrollChart.vue'
+import type { ChartPoint } from '@/components/BankrollChart.vue'
 import type { ProfileLedgerRow } from '@/api/types'
 
 const auth = useAuthStore()
@@ -24,19 +25,65 @@ const finalBankrollColor = computed(() =>
 
 const range = ref<'7' | '30' | 'all'>('7')
 
-const visiblePoints = computed(() => {
-  if (range.value === 'all') return store.points
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - (range.value === '7' ? 7 : 30))
-  const iso = cutoff.toISOString()
-  const filtered = store.points.filter((p) => p.at >= iso)
-  // Recompute cumulative based on filtered subset
-  if (filtered.length === 0) return filtered
+/** Format a Date to 'YYYY-MM-DD' local date string. */
+function toDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Build chart points: aggregate raw bankroll points by day,
+ * compute cumulative within the visible window,
+ * and always include a start-edge point + today end point.
+ */
+const chartData = computed<{ points: ChartPoint[]; startDate: string; endDate: string }>(() => {
+  const raw = store.points // already sorted by archivedAt asc, from server
+  if (raw.length === 0) return { points: [], startDate: '', endDate: '' }
+
+  const today = new Date()
+  const todayKey = toDateKey(today)
+
+  // Determine start date
+  let startDate: string
+  if (range.value === 'all') {
+    startDate = toDateKey(new Date(raw[0].at))
+  } else {
+    const d = new Date()
+    d.setDate(d.getDate() - (range.value === '7' ? 7 : 30))
+    startDate = toDateKey(d)
+  }
+  const endDate = todayKey
+
+  // Filter raw points within range
+  const filtered = raw.filter((p) => toDateKey(new Date(p.at)) >= startDate)
+
+  // Aggregate by day: sum perLedgerNet per day, collect titles
+  const dayMap = new Map<string, { dayNet: number; titles: string[] }>()
+  for (const p of filtered) {
+    const key = toDateKey(new Date(p.at))
+    const entry = dayMap.get(key)
+    if (entry) {
+      entry.dayNet = Math.round((entry.dayNet + p.perLedgerNet) * 100) / 100
+      entry.titles.push(p.ledgerTitle)
+    } else {
+      dayMap.set(key, { dayNet: p.perLedgerNet, titles: [p.ledgerTitle] })
+    }
+  }
+
+  // Build cumulative chart points sorted by date
+  const sortedDays = [...dayMap.keys()].sort()
   let cumulative = 0
-  return filtered.map((p) => {
-    cumulative += p.perLedgerNet
-    return { ...p, cumulative }
+  const points: ChartPoint[] = sortedDays.map((day) => {
+    const entry = dayMap.get(day)!
+    cumulative = Math.round((cumulative + entry.dayNet) * 100) / 100
+    return {
+      date: day,
+      dayNet: entry.dayNet,
+      cumulative,
+      titles: entry.titles,
+    }
   })
+
+  return { points, startDate, endDate }
 })
 
 onShow(async () => {
@@ -125,9 +172,13 @@ function formatDate(iso: string | null): string {
         >全部</text>
       </view>
       <view class="chart-slot">
-        <BankrollChart :points="visiblePoints" />
+        <BankrollChart
+          :points="chartData.points"
+          :start-date="chartData.startDate"
+          :end-date="chartData.endDate"
+        />
       </view>
-      <view v-if="visiblePoints.length === 0" class="chart-empty">
+      <view v-if="chartData.points.length === 0" class="chart-empty">
         <text>{{ range === 'all' ? '归档账本后会自动累计到此处' : '该时间范围内无数据' }}</text>
       </view>
     </view>

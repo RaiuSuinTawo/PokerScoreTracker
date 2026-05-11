@@ -1,21 +1,30 @@
 <script setup lang="ts">
 /**
- * Lightweight bankroll line chart — enhanced version.
+ * Lightweight bankroll line chart — time-axis version.
  *
  * Features:
+ *  - X-axis is a real time axis (date-based positioning)
  *  - Nice integer Y-axis ticks with gridlines
  *  - Per-point date labels on X-axis (with collision avoidance)
  *  - Touch interaction: drag to see specific point values (tooltip)
- *  - Zero baseline highlighted
+ *  - Data points are per-day aggregated (not per-ledger)
  */
 import { onMounted, watch, ref, nextTick, getCurrentInstance } from 'vue'
-import type { BankrollPoint } from '@/api/types'
+
+export interface ChartPoint {
+  date: string       // 'YYYY-MM-DD'
+  dayNet: number     // sum of perLedgerNet for this day
+  cumulative: number // running total
+  titles: string[]   // ledger titles archived on this day
+}
 
 const props = withDefaults(
   defineProps<{
-    points: BankrollPoint[]
+    points: ChartPoint[]
+    startDate: string  // 'YYYY-MM-DD' — left edge of chart
+    endDate: string    // 'YYYY-MM-DD' — right edge of chart (today)
     canvasId?: string
-    height?: number // rpx
+    height?: number    // rpx
   }>(),
   {
     canvasId: 'bankroll-canvas',
@@ -24,7 +33,7 @@ const props = withDefaults(
 )
 
 defineEmits<{
-  'point-tap': [p: BankrollPoint]
+  'point-tap': [p: ChartPoint]
 }>()
 
 const instance = getCurrentInstance()
@@ -35,13 +44,15 @@ const canvasHeightPx = ref(200)
 // Layout state shared between draw() and touch handlers
 const layout = ref({
   padL: 50,
-  padR: 16,
+  padR: 20,
   padT: 24,
   padB: 36,
   chartW: 0,
   chartH: 0,
   yMin: 0,
   yRange: 1,
+  tStart: 0,  // start date timestamp
+  tRange: 1,  // end - start in ms
 })
 
 // Touch interaction state
@@ -60,12 +71,8 @@ function computeDimensions() {
   }
 }
 
-/**
- * Compute nice integer tick marks for a given range.
- */
 function niceRange(minV: number, maxV: number, tickCount = 5) {
   if (minV === maxV) {
-    // All values are the same
     const v = minV
     if (v === 0) return { niceMin: -1, niceMax: 1, ticks: [-1, 0, 1] }
     const step = Math.pow(10, Math.floor(Math.log10(Math.abs(v))))
@@ -75,16 +82,13 @@ function niceRange(minV: number, maxV: number, tickCount = 5) {
       ticks: [Math.floor(v / step) * step - step, Math.round(v), Math.ceil(v / step) * step + step],
     }
   }
-
   const span = maxV - minV
   const rawStep = span / tickCount
   const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
   const niceFractions = [1, 2, 5, 10]
   const niceStep = niceFractions.map((f) => f * magnitude).find((s) => s >= rawStep) ?? magnitude * 10
-
   const niceMin = Math.floor(minV / niceStep) * niceStep
   const niceMax = Math.ceil(maxV / niceStep) * niceStep
-
   const ticks: number[] = []
   for (let t = niceMin; t <= niceMax + niceStep * 0.01; t += niceStep) {
     ticks.push(Math.round(t))
@@ -92,10 +96,22 @@ function niceRange(minV: number, maxV: number, tickCount = 5) {
   return { niceMin, niceMax, ticks }
 }
 
+/** Convert a date string to start-of-day timestamp. */
+function dateToTs(dateStr: string): number {
+  return new Date(dateStr + 'T00:00:00').getTime()
+}
+
+/** X pixel position for a given date string. */
+function xAtDate(dateStr: string): number {
+  const { padL, chartW, tStart, tRange } = layout.value
+  if (tRange === 0) return padL + chartW / 2
+  const t = dateToTs(dateStr)
+  return padL + ((t - tStart) / tRange) * chartW
+}
+
+/** X pixel position for point index. */
 function xAt(i: number): number {
-  const pts = props.points
-  if (pts.length <= 1) return layout.value.padL + layout.value.chartW / 2
-  return layout.value.padL + (i / (pts.length - 1)) * layout.value.chartW
+  return xAtDate(props.points[i].date)
 }
 
 function yAt(v: number): number {
@@ -103,8 +119,8 @@ function yAt(v: number): number {
   return padT + (1 - (v - yMin) / yRange) * chartH
 }
 
-function shortDate(iso: string): string {
-  const d = new Date(iso)
+function shortDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
   if (isNaN(d.getTime())) return ''
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
@@ -119,6 +135,12 @@ function draw(highlightIdx: number | null = null) {
   const chartH = H - padT - padB
   layout.value.chartW = chartW
   layout.value.chartH = chartH
+
+  // Time range
+  const tStart = dateToTs(props.startDate)
+  const tEnd = dateToTs(props.endDate)
+  layout.value.tStart = tStart
+  layout.value.tRange = tEnd - tStart || 1
 
   // Clear
   ctx.setFillStyle('#ffffff')
@@ -139,16 +161,14 @@ function draw(highlightIdx: number | null = null) {
   const dataMin = Math.min(0, ...values)
   const dataMax = Math.max(0, ...values)
   const { niceMin, niceMax, ticks } = niceRange(dataMin, dataMax, 4)
-
   layout.value.yMin = niceMin
   layout.value.yRange = niceMax - niceMin || 1
 
-  // Draw Y-axis gridlines and labels
+  // Y-axis gridlines and labels
   ctx.setFontSize(10)
   ctx.setTextAlign('right')
   for (const tick of ticks) {
     const y = yAt(tick)
-    // Gridline
     if (tick === 0) {
       ctx.setStrokeStyle('#90a4ae')
       ctx.setLineWidth(1)
@@ -156,7 +176,6 @@ function draw(highlightIdx: number | null = null) {
       ctx.setStrokeStyle('#e0e0e0')
       ctx.setLineWidth(0.5)
     }
-    // Dashed line
     ctx.beginPath()
     const step = tick === 0 ? 6 : 4
     let x = padL
@@ -166,8 +185,6 @@ function draw(highlightIdx: number | null = null) {
       x += step * 2
     }
     ctx.stroke()
-
-    // Label
     ctx.setFillStyle(tick === 0 ? '#555555' : '#888888')
     ctx.fillText(String(tick), padL - 6, y + 3)
   }
@@ -190,6 +207,15 @@ function draw(highlightIdx: number | null = null) {
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   })
+  // Extend line flat to today if last point isn't today
+  if (pts.length > 0) {
+    const lastPt = pts[pts.length - 1]
+    const lastX = xAt(pts.length - 1)
+    const todayX = padL + chartW
+    if (todayX - lastX > 1) {
+      ctx.lineTo(todayX, yAt(lastPt.cumulative))
+    }
+  }
   ctx.stroke()
 
   // Fill area below line
@@ -201,7 +227,15 @@ function draw(highlightIdx: number | null = null) {
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   })
-  ctx.lineTo(xAt(pts.length - 1), padT + chartH)
+  if (pts.length > 0) {
+    const lastPt = pts[pts.length - 1]
+    const lastX = xAt(pts.length - 1)
+    const todayX = padL + chartW
+    if (todayX - lastX > 1) {
+      ctx.lineTo(todayX, yAt(lastPt.cumulative))
+    }
+    ctx.lineTo(todayX, padT + chartH)
+  }
   ctx.lineTo(xAt(0), padT + chartH)
   ctx.closePath()
   ctx.fill()
@@ -213,7 +247,6 @@ function draw(highlightIdx: number | null = null) {
     const isHighlighted = i === highlightIdx
     const radius = isHighlighted ? 5 : 3
     if (isHighlighted) {
-      // White ring
       ctx.setFillStyle('#ffffff')
       ctx.beginPath()
       ctx.arc(x, y, radius + 2, 0, Math.PI * 2)
@@ -225,26 +258,29 @@ function draw(highlightIdx: number | null = null) {
     ctx.fill()
   })
 
-  // X-axis date labels (per-point with collision avoidance + edge alignment)
+  // X-axis date labels
   ctx.setFillStyle('#888888')
   ctx.setFontSize(10)
 
-  let lastLabelX = -999
+  // Always draw start date (left-aligned) and end date (right-aligned)
+  const startLabel = shortDate(props.startDate)
+  const endLabel = shortDate(props.endDate)
+  ctx.setTextAlign('left')
+  ctx.fillText(startLabel, padL, padT + chartH + 14)
+  ctx.setTextAlign('right')
+  ctx.fillText(endLabel, padL + chartW, padT + chartH + 14)
+
+  // Draw intermediate point labels if they don't collide with edges
+  const startLabelRight = padL + startLabel.length * 6 + 4
+  const endLabelLeft = padL + chartW - endLabel.length * 6 - 4
+  let lastLabelX = startLabelRight
   pts.forEach((p, i) => {
     const x = xAt(i)
-    if (x - lastLabelX < 30) return // skip if too close to previous
-    const label = shortDate(p.at)
-    // First point: left-align; last point: right-align; middle: center
-    if (i === 0) {
-      ctx.setTextAlign('left')
-      ctx.fillText(label, x, padT + chartH + 14)
-    } else if (i === pts.length - 1) {
-      ctx.setTextAlign('right')
-      ctx.fillText(label, x, padT + chartH + 14)
-    } else {
-      ctx.setTextAlign('center')
-      ctx.fillText(label, x, padT + chartH + 14)
-    }
+    if (x <= startLabelRight + 4) return  // too close to start label
+    if (x >= endLabelLeft - 4) return     // too close to end label
+    if (x - lastLabelX < 30) return       // too close to previous
+    ctx.setTextAlign('center')
+    ctx.fillText(shortDate(p.date), x, padT + chartH + 14)
     lastLabelX = x
   })
 
@@ -262,9 +298,14 @@ function draw(highlightIdx: number | null = null) {
     ctx.lineTo(hx, padT + chartH)
     ctx.stroke()
 
-    // Tooltip
-    const lines = [p.ledgerTitle, `本场: ${p.perLedgerNet >= 0 ? '+' : ''}${p.perLedgerNet}`, `累计: ${p.cumulative}`]
-    const tooltipW = 120
+    // Tooltip content
+    const titleLine = p.titles.length <= 2 ? p.titles.join(', ') : `${p.titles[0]} 等${p.titles.length}场`
+    const lines = [
+      shortDate(p.date) + ' ' + titleLine,
+      `当日: ${p.dayNet >= 0 ? '+' : ''}${p.dayNet}`,
+      `累计: ${p.cumulative}`,
+    ]
+    const tooltipW = 130
     const tooltipH = 48
     let tx = hx - tooltipW / 2
     if (tx < padL) tx = padL
@@ -272,13 +313,9 @@ function draw(highlightIdx: number | null = null) {
     let ty = hy - tooltipH - 12
     if (ty < 4) ty = hy + 12
 
-    // Tooltip background
     ctx.setFillStyle('rgba(50,50,50,0.9)')
-    ctx.beginPath()
     ctx.fillRect(tx, ty, tooltipW, tooltipH)
-    ctx.fill()
 
-    // Tooltip text
     ctx.setFillStyle('#ffffff')
     ctx.setFontSize(10)
     ctx.setTextAlign('left')
@@ -341,7 +378,7 @@ onMounted(() => {
 })
 
 watch(
-  () => props.points,
+  () => [props.points, props.startDate, props.endDate],
   () => redraw(),
   { deep: true },
 )

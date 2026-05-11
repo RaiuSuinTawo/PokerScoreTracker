@@ -10,10 +10,12 @@ const props = withDefaults(
     nickname: string
     submitting?: boolean
     mode?: 'add' | 'remove'
+    needsApproval?: boolean
   }>(),
   {
     submitting: false,
     mode: 'add',
+    needsApproval: false,
   },
 )
 
@@ -46,7 +48,10 @@ function submit() {
   <view class="modal-mask" @click="emit('cancel')">
     <view class="modal-card" @click.stop>
       <text class="modal-title">{{ isRemove ? '减少带入' : '增加带入' }}</text>
-      <text class="modal-sub">{{ nickname }}</text>
+      <text class="modal-sub">
+        {{ nickname }}
+        <text v-if="needsApproval" class="pending-badge">待管理员审批</text>
+      </text>
 
       <view class="field">
         <text class="label">{{ isRemove ? '减少手数' : '增加手数' }}</text>
@@ -69,7 +74,7 @@ function submit() {
           :disabled="submitting"
           @click="submit"
         >
-          {{ submitting ? '提交中…' : isRemove ? '确认减少' : '确认带入' }}
+          {{ submitting ? '提交中…' : needsApproval ? '发送申请' : isRemove ? '确认减少' : '确认带入' }}
         </button>
       </view>
     </view>
@@ -105,6 +110,17 @@ function submit() {
   font-size: 26rpx;
   color: #555;
   text-align: center;
+  display: flex;
+  gap: 8rpx;
+  justify-content: center;
+  align-items: center;
+}
+.pending-badge {
+  background: #ff9800;
+  color: #fff;
+  font-size: 22rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 20rpx;
 }
 .field {
   display: flex;

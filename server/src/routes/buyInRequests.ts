@@ -80,6 +80,10 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
       }
       const { hands, note } = parsed.data
 
+      // Determine whether to auto-approve
+      const isAdmin = req.membership!.role === Role.ADMIN
+      const shouldAutoApprove = isAdmin || req.ledger!.autoApprove
+
       // For negative hands (buy-out), check that buyInCount won't go below 0
       if (hands < 0) {
         const player = await prisma.player.findUnique({ where: { id: playerId }, select: { buyInCount: true } })
@@ -90,7 +94,6 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
         }
       }
 
-      // All requests are auto-approved: create + increment buyInCount in one transaction
       const result = await prisma.$transaction(async (tx) => {
         const created = await tx.buyInRequest.create({
           data: {
@@ -99,23 +102,32 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
             requestedById: req.auth!.userId,
             hands,
             note: note ?? null,
-            status: ReqStatus.APPROVED,
-            decidedById: req.auth!.userId,
-            decidedAt: new Date(),
+            status: shouldAutoApprove ? ReqStatus.APPROVED : ReqStatus.PENDING,
+            decidedById: shouldAutoApprove ? req.auth!.userId : null,
+            decidedAt: shouldAutoApprove ? new Date() : null,
           },
         })
-        await tx.player.update({
-          where: { id: playerId },
-          data: { buyInCount: { increment: hands } },
-        })
-        await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_DECIDED, {
-          requestId: created.id,
-          playerId,
-          hands,
-          status: ReqStatus.APPROVED,
-          auto: true,
-          by: req.auth!.userId,
-        })
+        if (shouldAutoApprove) {
+          await tx.player.update({
+            where: { id: playerId },
+            data: { buyInCount: { increment: hands } },
+          })
+          await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_DECIDED, {
+            requestId: created.id,
+            playerId,
+            hands,
+            status: ReqStatus.APPROVED,
+            auto: true,
+            by: req.auth!.userId,
+          })
+        } else {
+          await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_REQUESTED, {
+            requestId: created.id,
+            playerId,
+            hands,
+            by: req.auth!.userId,
+          })
+        }
         return created
       })
       return reply.code(201).send({ request: reqDTO(result) })

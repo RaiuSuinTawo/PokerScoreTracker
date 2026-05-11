@@ -87,6 +87,7 @@ export interface LedgerFull {
   status: LedgerStatus
   chipValue: number
   chipMultiplier: number
+  autoApprove: boolean
   createdAt: string
   archivedAt: string | null
   createdById: string

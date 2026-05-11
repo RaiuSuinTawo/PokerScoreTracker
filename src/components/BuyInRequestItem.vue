@@ -1,22 +1,39 @@
 <script setup lang="ts">
 /**
- * Buy-in request item — read-only history display.
- * No approval/reject/cancel buttons needed.
+ * Buy-in request item — displays a single buy-in record.
+ * Shows approve/reject buttons for admin on PENDING requests,
+ * and cancel button for the requester on their own PENDING requests.
  */
 import { computed } from 'vue'
-import type { BuyInRequestDTO } from '@/api/types'
+import type { BuyInRequestDTO, Role } from '@/api/types'
 
-const props = defineProps<{
-  request: BuyInRequestDTO
-  nickname: string
+const props = withDefaults(
+  defineProps<{
+    request: BuyInRequestDTO
+    nickname: string
+    role?: Role
+    isMine?: boolean
+    busy?: boolean
+  }>(),
+  {
+    role: 'PLAYER',
+    isMine: false,
+    busy: false,
+  },
+)
+
+const emit = defineEmits<{
+  approve: [rid: string]
+  reject: [rid: string]
+  cancel: [rid: string]
 }>()
 
 const statusLabel = computed(() => {
   switch (props.request.status) {
-    case 'APPROVED':
-      return '已生效'
     case 'PENDING':
       return '待处理'
+    case 'APPROVED':
+      return '已生效'
     case 'REJECTED':
       return '已拒绝'
     case 'CANCELED':
@@ -41,6 +58,11 @@ const createdAt = computed(() => {
   const day = String(d.getDate()).padStart(2, '0')
   return `${mon}-${day} ${hh}:${mm}`
 })
+
+const canDecide = computed(
+  () => props.role === 'ADMIN' && props.request.status === 'PENDING',
+)
+const canCancel = computed(() => props.isMine && props.request.status === 'PENDING')
 </script>
 
 <template>
@@ -53,8 +75,32 @@ const createdAt = computed(() => {
       <text class="status">{{ statusLabel }}</text>
     </view>
     <view v-if="request.note" class="note">备注：{{ request.note }}</view>
+    <view v-if="request.rejectReason" class="reject-reason">拒绝理由：{{ request.rejectReason }}</view>
     <view class="row-bottom">
       <text class="time">{{ createdAt }}</text>
+      <view class="actions">
+        <button
+          v-if="canDecide"
+          class="btn btn-reject"
+          size="mini"
+          :disabled="busy"
+          @click="emit('reject', request.id)"
+        >拒绝</button>
+        <button
+          v-if="canDecide"
+          class="btn btn-approve"
+          size="mini"
+          :disabled="busy"
+          @click="emit('approve', request.id)"
+        >批准</button>
+        <button
+          v-if="canCancel"
+          class="btn btn-cancel"
+          size="mini"
+          :disabled="busy"
+          @click="emit('cancel', request.id)"
+        >取消申请</button>
+      </view>
     </view>
   </view>
 </template>
@@ -107,16 +153,20 @@ const createdAt = computed(() => {
   font-size: 24rpx;
   color: #555;
 }
-.status-approved .status { color: #2e7d32; }
 .status-pending .status { color: #ff9800; }
+.status-approved .status { color: #2e7d32; }
 .status-rejected .status { color: #e53935; }
 .status-canceled .status { color: #888; }
 
-.note {
+.note,
+.reject-reason {
   font-size: 24rpx;
   color: #666;
   margin-top: 8rpx;
   line-height: 1.4;
+}
+.reject-reason {
+  color: #e53935;
 }
 .row-bottom {
   display: flex;
@@ -127,5 +177,26 @@ const createdAt = computed(() => {
 .time {
   font-size: 22rpx;
   color: #aaa;
+}
+.actions {
+  display: flex;
+  gap: 8rpx;
+}
+.btn {
+  font-size: 24rpx;
+}
+.btn-approve {
+  background: #1a73e8;
+  color: #fff;
+}
+.btn-reject {
+  background: #fff;
+  color: #e53935;
+  border: 2rpx solid #e53935;
+}
+.btn-cancel {
+  background: #fff;
+  color: #888;
+  border: 2rpx solid #ccc;
 }
 </style>

@@ -27,6 +27,7 @@ const patchBody = z.object({
   title: z.string().trim().min(1).max(60).optional(),
   chipValue: z.number().positive().max(1_000_000).optional(),
   chipMultiplier: z.number().positive().max(1_000).optional(),
+  autoApprove: z.boolean().optional(),
 })
 
 const transferAdminBody = z.object({
@@ -112,6 +113,7 @@ async function fetchFullLedger(ledgerId: string, userId: string) {
     status: ledger.status,
     chipValue: ledger.chipValue,
     chipMultiplier: ledger.chipMultiplier,
+    autoApprove: ledger.autoApprove,
     createdAt: ledger.createdAt.toISOString(),
     archivedAt: ledger.archivedAt ? ledger.archivedAt.toISOString() : null,
     createdById: ledger.createdById,

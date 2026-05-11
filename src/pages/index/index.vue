@@ -297,14 +297,21 @@ const buyInTargetNickname = computed(() => {
   return players.value.find((p) => p.id === id)?.nickname ?? ''
 })
 
+/** Whether the current buy-in will need admin approval (for the modal badge). */
+const buyInNeedsApproval = computed(() => {
+  if (store.role === 'ADMIN') return false // admin always auto-approved
+  return !store.autoApprove
+})
+
 async function submitBuyIn(payload: { hands: number; note?: string }) {
   submittingBuyIn.value = true
   try {
-    await store.requestBuyIn(payload.hands, payload.note)
+    const r = await store.requestBuyIn(payload.hands, payload.note)
     showBuyInModal.value = false
     buyInTargetPlayerId.value = null
+    const isApproved = r.status === 'APPROVED'
     uni.showToast({
-      title: payload.hands > 0 ? '已带入' : '已减少',
+      title: isApproved ? (payload.hands > 0 ? '已带入' : '已减少') : '已发送申请',
       icon: 'none',
       duration: 1500,
     })
@@ -354,6 +361,17 @@ async function doArchive() {
 function goToSharedExpense() {
   if (!ledgerId.value) return
   uni.navigateTo({ url: `/pages/shared-expense/index?id=${ledgerId.value}` })
+}
+
+async function toggleAutoApprove() {
+  try {
+    await store.setAutoApprove(!store.autoApprove)
+  } catch (err) {
+    uni.showToast({
+      title: err instanceof ApiError ? err.message : '设置失败',
+      icon: 'none',
+    })
+  }
 }
 
 function goBack() {
@@ -429,6 +447,14 @@ async function doDeleteLedger() {
       @update:chip-multiplier="onChipMultiplierUpdate"
     />
 
+    <!-- Auto-approve toggle (admin only) -->
+    <view v-if="store.canToggleAutoApprove" class="auto-approve-row" @click="toggleAutoApprove">
+      <text class="auto-approve-label">带入自动通过</text>
+      <view class="toggle" :class="{ on: store.autoApprove }">
+        <view class="toggle-knob" />
+      </view>
+    </view>
+
     <!-- Table header -->
     <view class="table-header">
       <text class="col-nick">玩家</text>
@@ -503,6 +529,7 @@ async function doDeleteLedger() {
       v-if="showBuyInModal"
       :nickname="buyInTargetNickname"
       :mode="buyInMode"
+      :needs-approval="buyInNeedsApproval"
       :submitting="submittingBuyIn"
       @submit="submitBuyIn"
       @cancel="cancelBuyIn"
@@ -640,6 +667,41 @@ async function doDeleteLedger() {
   padding: 0 8rpx;
   text-align: center;
   z-index: 10;
+}
+.auto-approve-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12rpx 32rpx;
+}
+.auto-approve-label {
+  font-size: 26rpx;
+  color: #666;
+}
+.toggle {
+  width: 80rpx;
+  height: 44rpx;
+  border-radius: 22rpx;
+  background: #ccc;
+  position: relative;
+  transition: background 0.2s;
+}
+.toggle.on {
+  background: #1a73e8;
+}
+.toggle-knob {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 4rpx;
+  left: 4rpx;
+  transition: left 0.2s;
+  box-shadow: 0 2rpx 4rpx rgba(0,0,0,0.2);
+}
+.toggle.on .toggle-knob {
+  left: 40rpx;
 }
 .archived-banner {
   margin: 12rpx 32rpx;

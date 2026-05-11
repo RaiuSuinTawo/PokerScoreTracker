@@ -59,9 +59,15 @@ export const useLedgerStore = defineStore('ledger', () => {
   /** Decide the UX mode for the +/- stepper on a player row. */
   function buyInControlMode(pid: string): 'direct' | 'request' | 'none' {
     if (isArchived.value) return 'none'
+    // Own row: always direct (self-service)
     if (pid === myPlayerId.value) return 'direct'
+    // Admin can operate on all players
+    if (role.value === 'ADMIN') return 'direct'
     return 'none'
   }
+
+  const autoApprove = computed(() => ledger.value?.autoApprove ?? true)
+  const canToggleAutoApprove = computed(() => role.value === 'ADMIN' && !isArchived.value)
 
   // ---- Helpers ----
   function _applyLedger(full: LedgerFull) {
@@ -168,6 +174,15 @@ export const useLedgerStore = defineStore('ledger', () => {
     })
     _applyLedger(res.ledger)
     await _fetchSettlement()
+    kickPolling()
+  }
+
+  async function setAutoApprove(v: boolean): Promise<void> {
+    if (!ledger.value) return
+    const res = await api.patch<LedgerResponse>(`/ledgers/${ledger.value.id}`, {
+      autoApprove: v,
+    })
+    _applyLedger(res.ledger)
     kickPolling()
   }
 
@@ -308,6 +323,8 @@ export const useLedgerStore = defineStore('ledger', () => {
     canEditChipAmount,
     canDeleteLedger,
     canArchive,
+    autoApprove,
+    canToggleAutoApprove,
     canEditNickname,
     buyInControlMode,
     // actions
@@ -318,6 +335,7 @@ export const useLedgerStore = defineStore('ledger', () => {
     kickPolling,
     setChipValue,
     setChipMultiplier,
+    setAutoApprove,
     updatePlayer,
     removePlayer,
     addExpense,

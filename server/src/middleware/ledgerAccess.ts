@@ -15,6 +15,7 @@ declare module 'fastify' {
       id: string
       serial: string
       status: string
+      autoApprove: boolean
       archivedAt: Date | null
     }
     membership?: {
@@ -47,7 +48,7 @@ export function ledgerAccess(opts: LedgerAccessOptions = {}): preHandlerHookHand
     const [ledger, membership] = await Promise.all([
       prisma.ledger.findUnique({
         where: { id: ledgerId },
-        select: { id: true, serial: true, status: true, archivedAt: true },
+        select: { id: true, serial: true, status: true, autoApprove: true, archivedAt: true },
       }),
       prisma.membership.findUnique({
         where: { userId_ledgerId: { userId: req.auth.userId, ledgerId } },

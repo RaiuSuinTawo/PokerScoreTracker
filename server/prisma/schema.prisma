@@ -33,6 +33,7 @@ model Ledger {
   title          String
   chipValue      Float     @default(200)
   chipMultiplier Float     @default(1)
+  autoApprove    Boolean   @default(true)
   status         String    @default("ACTIVE") // ACTIVE | ARCHIVED
   createdById    String
   createdAt      DateTime  @default(now())

@@ -22,7 +22,7 @@ const finalBankrollColor = computed(() =>
   finalBankroll.value > 0 ? '#e53935' : finalBankroll.value < 0 ? '#2e7d32' : '#888',
 )
 
-const range = ref<'7' | '30' | 'all'>('all')
+const range = ref<'7' | '30' | 'all'>('7')
 
 const visiblePoints = computed(() => {
   if (range.value === 'all') return store.points

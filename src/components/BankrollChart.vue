@@ -229,10 +229,20 @@ function draw(highlightIdx: number | null = null) {
   ctx.setFillStyle('#888888')
   ctx.setFontSize(10)
   ctx.setTextAlign('center')
+
+  // Always show today's date at the right end
+  const todayLabel = shortDate(new Date().toISOString())
+  const rightEdgeX = padL + chartW
+  ctx.setTextAlign('right')
+  ctx.fillText(todayLabel, rightEdgeX, padT + chartH + 14)
+
+  // Draw point date labels, skipping if too close to each other or to the right edge
+  ctx.setTextAlign('center')
   let lastLabelX = -999
   pts.forEach((p, i) => {
     const x = xAt(i)
-    if (x - lastLabelX < 30) return // skip if too close
+    if (x - lastLabelX < 30) return // skip if too close to previous
+    if (rightEdgeX - x < 30) return // skip if too close to today label
     ctx.fillText(shortDate(p.at), x, padT + chartH + 14)
     lastLabelX = x
   })

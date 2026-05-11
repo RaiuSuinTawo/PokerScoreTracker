@@ -302,7 +302,7 @@ function draw(highlightIdx: number | null = null) {
     const lines: string[] = []
     lines.push(shortDate(p.date))                           // date header
     for (const t of p.titles) {
-      lines.push('  ' + t)                                  // indented session names
+      lines.push('  [' + t + ']')                              // indented session names in brackets
     }
     if (p.titles.length === 0) {
       lines.push('  (无归档)')

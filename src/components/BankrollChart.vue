@@ -230,19 +230,24 @@ function draw(highlightIdx: number | null = null) {
   ctx.setFontSize(10)
   ctx.setTextAlign('center')
 
-  // Always show today's date at the right end
   const todayLabel = shortDate(new Date().toISOString())
+  const lastPointLabel = pts.length > 0 ? shortDate(pts[pts.length - 1].at) : ''
   const rightEdgeX = padL + chartW
-  ctx.setTextAlign('right')
-  ctx.fillText(todayLabel, rightEdgeX, padT + chartH + 14)
 
-  // Draw point date labels, skipping if too close to each other or to the right edge
+  // Only show today's date at the right end if the last data point is NOT today
+  const showTodayExtra = lastPointLabel !== todayLabel
+  if (showTodayExtra) {
+    ctx.setTextAlign('right')
+    ctx.fillText(todayLabel, rightEdgeX, padT + chartH + 14)
+  }
+
+  // Draw point date labels, skipping if too close to each other (or to today label)
   ctx.setTextAlign('center')
   let lastLabelX = -999
   pts.forEach((p, i) => {
     const x = xAt(i)
     if (x - lastLabelX < 30) return // skip if too close to previous
-    if (rightEdgeX - x < 30) return // skip if too close to today label
+    if (showTodayExtra && rightEdgeX - x < 30) return // skip if too close to today label
     ctx.fillText(shortDate(p.at), x, padT + chartH + 14)
     lastLabelX = x
   })

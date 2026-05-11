@@ -231,6 +231,16 @@ export const useLedgerStore = defineStore('ledger', () => {
     kickPolling()
   }
 
+  async function transferAdmin(targetMembershipId: string): Promise<void> {
+    if (!ledger.value) return
+    const res = await api.post<LedgerResponse>(`/ledgers/${ledger.value.id}/transfer-admin`, {
+      membershipId: targetMembershipId,
+    })
+    _applyLedger(res.ledger)
+    await Promise.all([_fetchSettlement(), _fetchPending()])
+    kickPolling()
+  }
+
   // ---- Buy-in requests (Phase 5) ----
   async function fetchPendingRequests(): Promise<void> {
     await _fetchPending()
@@ -316,6 +326,7 @@ export const useLedgerStore = defineStore('ledger', () => {
     removeExpense,
     deleteLedger,
     archive,
+    transferAdmin,
     fetchPendingRequests,
     requestBuyIn,
     approveRequest,

@@ -39,6 +39,7 @@ const showPlayerModal = ref(false)
 const editingPlayerId = ref<string | null>(null)
 const showDeleteLedgerConfirm = ref(false)
 const showArchiveConfirm = ref(false)
+const showTransferAdminConfirm = ref(false)
 const showBuyInModal = ref(false)
 const buyInTargetPlayerId = ref<string | null>(null)
 const submittingBuyIn = ref(false)
@@ -105,6 +106,27 @@ const editingReadonlyFields = computed<Array<'nickname' | 'buyInCount' | 'chipAm
 })
 
 const modalShowDelete = computed(() => store.role === 'ADMIN' && !store.isArchived)
+
+const modalShowTransferAdmin = computed(() => {
+  if (store.role !== 'ADMIN' || store.isArchived) return false
+  const pid = editingPlayerId.value
+  if (!pid || pid === store.myPlayerId) return false
+  // Check that the player has a corresponding membership (is a real user, not just an admin-created slot)
+  const membership = ledger.value?.memberships?.find((m) => m.playerId === pid)
+  return !!membership
+})
+
+const transferTargetMembership = computed(() => {
+  const pid = editingPlayerId.value
+  if (!pid) return null
+  return ledger.value?.memberships?.find((m) => m.playerId === pid) ?? null
+})
+
+const transferTargetNickname = computed(() => {
+  const pid = editingPlayerId.value
+  if (!pid) return ''
+  return players.value.find((p) => p.id === pid)?.nickname ?? ''
+})
 
 // ── Lifecycle ──
 
@@ -188,6 +210,28 @@ async function removePlayerCurrent() {
   } catch (err) {
     uni.showToast({
       title: err instanceof ApiError ? err.message : '删除失败',
+      icon: 'none',
+    })
+  }
+}
+
+function onTransferAdmin() {
+  showPlayerModal.value = false
+  showTransferAdminConfirm.value = true
+}
+
+async function doTransferAdmin() {
+  const membership = transferTargetMembership.value
+  if (!membership) return
+  try {
+    await store.transferAdmin(membership.id)
+    showTransferAdminConfirm.value = false
+    editingPlayerId.value = null
+    uni.showToast({ title: '管理员已转让', icon: 'none', duration: 1500 })
+  } catch (err) {
+    showTransferAdminConfirm.value = false
+    uni.showToast({
+      title: err instanceof ApiError ? err.message : '转让失败',
       icon: 'none',
     })
   }
@@ -449,8 +493,10 @@ async function doDeleteLedger() {
       :player="editingPlayer"
       :readonly-fields="editingReadonlyFields"
       :show-delete="modalShowDelete"
+      :show-transfer-admin="modalShowTransferAdmin"
       @save="savePlayer"
       @remove="removePlayerCurrent"
+      @transfer-admin="onTransferAdmin"
       @cancel="showPlayerModal = false; editingPlayerId = null"
     />
 
@@ -480,6 +526,15 @@ async function doDeleteLedger() {
       :message="`归档后账本将转为只读，所有玩家、公摊、带入申请都不可再修改。确认归档「${ledger.title}」？`"
       @confirm="doArchive"
       @cancel="showArchiveConfirm = false"
+    />
+
+    <!-- Transfer admin confirm -->
+    <ConfirmDialog
+      v-if="showTransferAdminConfirm"
+      title="转让管理员"
+      :message="`确定将管理员权限转让给「${transferTargetNickname}」吗？转让后你将成为普通玩家。`"
+      @confirm="doTransferAdmin"
+      @cancel="showTransferAdminConfirm = false; editingPlayerId = null"
     />
   </view>
 

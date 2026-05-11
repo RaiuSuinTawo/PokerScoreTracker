@@ -17,16 +17,19 @@ const props = withDefaults(
     player: Player
     readonlyFields?: Array<'nickname' | 'buyInCount' | 'chipAmount'>
     showDelete?: boolean
+    showTransferAdmin?: boolean
   }>(),
   {
     readonlyFields: () => ['buyInCount'] as Array<'nickname' | 'buyInCount' | 'chipAmount'>,
     showDelete: false,
+    showTransferAdmin: false,
   },
 )
 
 const emit = defineEmits<{
   save: [patch: Partial<{ nickname: string; buyInCount: number; chipAmount: number }>]
   remove: []
+  'transfer-admin': []
   cancel: []
 }>()
 
@@ -146,6 +149,11 @@ function confirmRemove() {
       <view class="modal-actions">
         <button class="btn-cancel" @click="emit('cancel')">取消</button>
         <button class="btn-confirm" @click="confirm">保存</button>
+      </view>
+
+      <!-- Transfer Admin -->
+      <view v-if="showTransferAdmin" class="transfer-zone" @click="emit('transfer-admin')">
+        <text class="transfer-text">转让管理员</text>
       </view>
 
       <!-- Delete -->
@@ -280,6 +288,17 @@ function confirmRemove() {
     background: #1a73e8;
     color: #fff;
   }
+}
+
+.transfer-zone {
+  margin-top: 24rpx;
+  text-align: center;
+  padding: 16rpx 0;
+}
+
+.transfer-text {
+  color: #1a73e8;
+  font-size: 28rpx;
 }
 
 .delete-zone {

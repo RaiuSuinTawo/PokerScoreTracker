@@ -29,6 +29,10 @@ const patchBody = z.object({
   chipMultiplier: z.number().positive().max(1_000).optional(),
 })
 
+const transferAdminBody = z.object({
+  membershipId: z.string().min(1),
+})
+
 type LedgerSummary = {
   id: string
   serial: string
@@ -354,6 +358,66 @@ export async function ledgerRoutes(app: FastifyInstance) {
         })
       })
       const full = await fetchFullLedger(ledgerId, req.auth!.userId)
+      return reply.send({ ledger: full })
+    },
+  )
+
+  // POST /ledgers/:id/transfer-admin — transfer admin role to another member
+  app.post(
+    '/ledgers/:id/transfer-admin',
+    {
+      preHandler: [
+        requireAuth(),
+        ledgerAccess({ allowArchived: false, requireRole: Role.ADMIN }),
+      ],
+    },
+    async (req, reply) => {
+      const parsed = transferAdminBody.safeParse(req.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: '参数不合法' } })
+      }
+      const ledgerId = req.ledger!.id
+      const currentUserId = req.auth!.userId
+
+      // Find the target membership
+      const targetMembership = await prisma.membership.findFirst({
+        where: { id: parsed.data.membershipId, ledgerId },
+      })
+      if (!targetMembership) {
+        return reply.code(404).send({
+          error: { code: 'NOT_FOUND', message: '目标成员不存在' },
+        })
+      }
+      if (targetMembership.role === Role.ADMIN) {
+        return reply.code(409).send({
+          error: { code: 'ALREADY_ADMIN', message: '该成员已经是管理员' },
+        })
+      }
+      if (targetMembership.userId === currentUserId) {
+        return reply.code(400).send({
+          error: { code: 'BAD_REQUEST', message: '不能转让给自己' },
+        })
+      }
+
+      // Perform the transfer in a single transaction
+      await prisma.$transaction(async (tx) => {
+        // Demote current admin to PLAYER
+        await tx.membership.update({
+          where: { userId_ledgerId: { userId: currentUserId, ledgerId } },
+          data: { role: Role.PLAYER },
+        })
+        // Promote target to ADMIN
+        await tx.membership.update({
+          where: { id: targetMembership.id },
+          data: { role: Role.ADMIN },
+        })
+        await emitEvent(tx, ledgerId, LedgerEventType.ADMIN_TRANSFERRED, {
+          from: currentUserId,
+          to: targetMembership.userId,
+        })
+      })
+
+      const full = await fetchFullLedger(ledgerId, currentUserId)
       return reply.send({ ledger: full })
     },
   )

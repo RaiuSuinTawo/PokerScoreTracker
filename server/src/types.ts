@@ -31,5 +31,6 @@ export const LedgerEventType = {
   EXPENSE_CHANGED: 'EXPENSE_CHANGED',
   LEDGER_UPDATED: 'LEDGER_UPDATED',
   LEDGER_ARCHIVED: 'LEDGER_ARCHIVED',
+  ADMIN_TRANSFERRED: 'ADMIN_TRANSFERRED',
 } as const
 export type LedgerEventType = (typeof LedgerEventType)[keyof typeof LedgerEventType]

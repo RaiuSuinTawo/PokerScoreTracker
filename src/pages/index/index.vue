@@ -425,6 +425,7 @@ async function doDeleteLedger() {
         <button class="icon-btn" size="mini" @click="goBack">返回</button>
         <view class="icon-btn-wrap" @click="goToBuyInRequests">
           <button class="icon-btn" size="mini">记录</button>
+          <text v-if="store.pendingCount > 0" class="badge-dot">{{ store.pendingCount }}</text>
         </view>
         <button
           v-if="store.canDeleteLedger"
@@ -501,6 +502,7 @@ async function doDeleteLedger() {
     <view class="footer-actions">
       <view class="footer-btn-wrap" @click="goToBuyInRequests">
         <button class="footer-btn secondary">带入记录</button>
+        <text v-if="store.pendingCount > 0" class="badge-dot footer-badge">{{ store.pendingCount }}</text>
       </view>
       <button class="footer-btn" @click="goToSharedExpense">公摊开销</button>
       <button

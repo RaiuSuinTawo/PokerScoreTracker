@@ -79,58 +79,69 @@ export async function buyInRequestRoutes(app: FastifyInstance) {
         })
       }
       const { hands, note } = parsed.data
-
-      // Determine whether to auto-approve
       const isAdmin = req.membership!.role === Role.ADMIN
-      const shouldAutoApprove = isAdmin || req.ledger!.autoApprove
 
-      // For negative hands (buy-out), check that buyInCount won't go below 0
-      if (hands < 0) {
-        const player = await prisma.player.findUnique({ where: { id: playerId }, select: { buyInCount: true } })
-        if (!player || player.buyInCount + hands < 0) {
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          // Re-read autoApprove inside transaction to avoid TOCTOU race
+          const ledgerRow = await tx.ledger.findUnique({
+            where: { id: req.ledger!.id },
+            select: { autoApprove: true },
+          })
+          const shouldAutoApprove = isAdmin || !!ledgerRow?.autoApprove
+
+          // For negative hands (buy-out), check buyInCount inside transaction
+          if (hands < 0) {
+            const player = await tx.player.findUnique({ where: { id: playerId }, select: { buyInCount: true } })
+            if (!player || player.buyInCount + hands < 0) {
+              throw new Error('INSUFFICIENT_BUY_IN')
+            }
+          }
+
+          const created = await tx.buyInRequest.create({
+            data: {
+              ledgerId: req.ledger!.id,
+              playerId,
+              requestedById: req.auth!.userId,
+              hands,
+              note: note ?? null,
+              status: shouldAutoApprove ? ReqStatus.APPROVED : ReqStatus.PENDING,
+              decidedById: shouldAutoApprove ? req.auth!.userId : null,
+              decidedAt: shouldAutoApprove ? new Date() : null,
+            },
+          })
+          if (shouldAutoApprove) {
+            await tx.player.update({
+              where: { id: playerId },
+              data: { buyInCount: { increment: hands } },
+            })
+            await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_DECIDED, {
+              requestId: created.id,
+              playerId,
+              hands,
+              status: ReqStatus.APPROVED,
+              auto: true,
+              by: req.auth!.userId,
+            })
+          } else {
+            await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_REQUESTED, {
+              requestId: created.id,
+              playerId,
+              hands,
+              by: req.auth!.userId,
+            })
+          }
+          return created
+        })
+        return reply.code(201).send({ request: reqDTO(result) })
+      } catch (err: any) {
+        if (err?.message === 'INSUFFICIENT_BUY_IN') {
           return reply.code(409).send({
             error: { code: 'INSUFFICIENT_BUY_IN', message: '手数不足，无法减少' },
           })
         }
+        throw err
       }
-
-      const result = await prisma.$transaction(async (tx) => {
-        const created = await tx.buyInRequest.create({
-          data: {
-            ledgerId: req.ledger!.id,
-            playerId,
-            requestedById: req.auth!.userId,
-            hands,
-            note: note ?? null,
-            status: shouldAutoApprove ? ReqStatus.APPROVED : ReqStatus.PENDING,
-            decidedById: shouldAutoApprove ? req.auth!.userId : null,
-            decidedAt: shouldAutoApprove ? new Date() : null,
-          },
-        })
-        if (shouldAutoApprove) {
-          await tx.player.update({
-            where: { id: playerId },
-            data: { buyInCount: { increment: hands } },
-          })
-          await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_DECIDED, {
-            requestId: created.id,
-            playerId,
-            hands,
-            status: ReqStatus.APPROVED,
-            auto: true,
-            by: req.auth!.userId,
-          })
-        } else {
-          await emitEvent(tx, req.ledger!.id, LedgerEventType.BUY_IN_REQUESTED, {
-            requestId: created.id,
-            playerId,
-            hands,
-            by: req.auth!.userId,
-          })
-        }
-        return created
-      })
-      return reply.code(201).send({ request: reqDTO(result) })
     },
   )
 

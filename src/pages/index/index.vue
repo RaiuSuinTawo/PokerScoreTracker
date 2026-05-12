@@ -238,6 +238,7 @@ async function doTransferAdmin() {
     uni.showToast({ title: '管理员已转让', icon: 'none', duration: 1500 })
   } catch (err) {
     showTransferAdminConfirm.value = false
+    editingPlayerId.value = null
     uni.showToast({
       title: err instanceof ApiError ? err.message : '转让失败',
       icon: 'none',
@@ -363,7 +364,11 @@ function goToSharedExpense() {
   uni.navigateTo({ url: `/pages/shared-expense/index?id=${ledgerId.value}` })
 }
 
+const togglingAutoApprove = ref(false)
+
 async function toggleAutoApprove() {
+  if (togglingAutoApprove.value) return
+  togglingAutoApprove.value = true
   try {
     await store.setAutoApprove(!store.autoApprove)
   } catch (err) {
@@ -371,6 +376,8 @@ async function toggleAutoApprove() {
       title: err instanceof ApiError ? err.message : '设置失败',
       icon: 'none',
     })
+  } finally {
+    togglingAutoApprove.value = false
   }
 }
 

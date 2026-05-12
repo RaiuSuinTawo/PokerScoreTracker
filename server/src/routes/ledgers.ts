@@ -286,11 +286,39 @@ export async function ledgerRoutes(app: FastifyInstance) {
       if (!parsed.success) {
         return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: '参数不合法' } })
       }
-      await prisma.ledger.update({
-        where: { id: req.ledger!.id },
-        data: parsed.data,
-      })
-      const full = await fetchFullLedger(req.ledger!.id, req.auth!.userId)
+      const ledgerId = req.ledger!.id
+
+      // When autoApprove transitions from false → true, auto-approve all PENDING requests
+      if (parsed.data.autoApprove === true && !req.ledger!.autoApprove) {
+        await prisma.$transaction(async (tx) => {
+          await tx.ledger.update({ where: { id: ledgerId }, data: parsed.data })
+          const pendingReqs = await tx.buyInRequest.findMany({
+            where: { ledgerId, status: 'PENDING' },
+          })
+          for (const r of pendingReqs) {
+            await tx.buyInRequest.update({
+              where: { id: r.id },
+              data: { status: 'APPROVED', decidedById: req.auth!.userId, decidedAt: new Date() },
+            })
+            await tx.player.update({
+              where: { id: r.playerId },
+              data: { buyInCount: { increment: r.hands } },
+            })
+            await emitEvent(tx, ledgerId, LedgerEventType.BUY_IN_DECIDED, {
+              requestId: r.id,
+              playerId: r.playerId,
+              hands: r.hands,
+              status: 'APPROVED',
+              auto: true,
+              by: req.auth!.userId,
+            })
+          }
+        })
+      } else {
+        await prisma.ledger.update({ where: { id: ledgerId }, data: parsed.data })
+      }
+
+      const full = await fetchFullLedger(ledgerId, req.auth!.userId)
       return reply.send({ ledger: full })
     },
   )

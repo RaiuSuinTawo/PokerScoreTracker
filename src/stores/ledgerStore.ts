@@ -71,6 +71,12 @@ export const useLedgerStore = defineStore('ledger', () => {
 
   // ---- Helpers ----
   function _applyLedger(full: LedgerFull) {
+    // Clear pending requests if user was demoted from ADMIN
+    const oldRole = ledger.value?.me?.role
+    const newRole = full.me?.role
+    if (oldRole === 'ADMIN' && newRole !== 'ADMIN') {
+      pendingRequests.value = []
+    }
     ledger.value = full
   }
 

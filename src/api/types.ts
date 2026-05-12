@@ -135,6 +135,7 @@ export type LedgerEventType =
   | 'EXPENSE_CHANGED'
   | 'LEDGER_UPDATED'
   | 'LEDGER_ARCHIVED'
+  | 'ADMIN_TRANSFERRED'
 
 export interface LedgerEvent {
   id: string

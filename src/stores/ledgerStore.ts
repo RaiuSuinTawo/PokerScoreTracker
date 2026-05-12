@@ -75,6 +75,10 @@ export const useLedgerStore = defineStore('ledger', () => {
       pendingRequests.value = []
     }
     ledger.value = full
+    // If promoted to ADMIN, immediately fetch pending requests
+    if (oldRole !== 'ADMIN' && newRole === 'ADMIN') {
+      void _fetchPending()
+    }
   }
 
   async function _fetchSettlement() {

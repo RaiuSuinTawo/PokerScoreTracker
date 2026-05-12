@@ -59,10 +59,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   /** Decide the UX mode for the +/- stepper on a player row. */
   function buyInControlMode(pid: string): 'direct' | 'request' | 'none' {
     if (isArchived.value) return 'none'
-    // Own row: always direct (self-service)
     if (pid === myPlayerId.value) return 'direct'
-    // Admin can operate on all players
-    if (role.value === 'ADMIN') return 'direct'
     return 'none'
   }
 

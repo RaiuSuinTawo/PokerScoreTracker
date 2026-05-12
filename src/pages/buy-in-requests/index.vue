@@ -70,6 +70,7 @@ onLoad((q) => {
 })
 
 onShow(async () => {
+  await auth.waitUntilReady()
   if (store.ledger) {
     await store.fetchPendingRequests()
     // Auto-switch to pending tab if there are pending requests and user is admin

@@ -142,9 +142,14 @@ onLoad((q) => {
   }
 })
 
-onShow(() => {
+onShow(async () => {
+  await auth.waitUntilReady()
   if (store.ledger) {
-    void store.refresh()
+    try {
+      await store.refresh()
+    } catch {
+      /* http.ts shows toast for 5xx; 401 handled by refresh flow */
+    }
     store.startPolling()
   }
 })

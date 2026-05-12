@@ -235,13 +235,22 @@ export async function ledgerRoutes(app: FastifyInstance) {
     }
 
     await prisma.$transaction(async (tx) => {
+      // Use MAX(order)+1 instead of COUNT to avoid duplicate order values
+      // when players have been deleted (count shrinks but order values remain).
+      const maxOrderRow = await tx.player.findFirst({
+        where: { ledgerId: ledger.id },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      })
+      const nextOrder = (maxOrderRow?.order ?? -1) + 1
+
       const player = await tx.player.create({
         data: {
           ledgerId: ledger.id,
           nickname: displayName,
           buyInCount: 0,
           chipAmount: 0,
-          order: (await tx.player.count({ where: { ledgerId: ledger.id } })) + 0,
+          order: nextOrder,
         },
       })
       await tx.membership.create({
@@ -363,11 +372,14 @@ export async function ledgerRoutes(app: FastifyInstance) {
           select: { amount: true },
         }),
       ])
+      if (!ledgerRow) {
+        return reply.code(404).send({ error: { code: 'NOT_FOUND', message: '账本不存在' } })
+      }
       const settlement = computeSettlement(
         players,
         expenses,
-        ledgerRow!.chipValue,
-        ledgerRow!.chipMultiplier,
+        ledgerRow.chipValue,
+        ledgerRow.chipMultiplier,
       )
       await prisma.$transaction(async (tx) => {
         await tx.ledger.update({

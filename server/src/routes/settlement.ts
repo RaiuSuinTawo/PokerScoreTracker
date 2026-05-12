@@ -28,7 +28,10 @@ export async function settlementRoutes(app: FastifyInstance) {
         where: { id: req.ledger!.id },
         select: { chipValue: true, chipMultiplier: true },
       })
-      const s = computeSettlement(players, expenses, ledger!.chipValue, ledger!.chipMultiplier)
+      if (!ledger) {
+        return reply.code(404).send({ error: { code: 'NOT_FOUND', message: '账本不存在' } })
+      }
+      const s = computeSettlement(players, expenses, ledger.chipValue, ledger.chipMultiplier)
       return reply.send(s)
     },
   )

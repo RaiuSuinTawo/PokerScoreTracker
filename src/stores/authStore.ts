@@ -87,14 +87,12 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = null
       }
     }
-    isHydrated.value = true
 
     // If we have tokens, verify with /auth/me; refresh path is auto-handled by http.ts
     if (access.value) {
       try {
         const me = await api.get<MeResponse>('/auth/me')
         _setUser(me.user)
-        return
       } catch (err) {
         if (err instanceof ApiError) {
           // http.ts already called onAuthFailure for hard 401s (token invalid/revoked).
@@ -111,6 +109,10 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
     }
+
+    // Mark hydrated AFTER /auth/me completes (or skips if no token),
+    // so pages waiting for isHydrated can safely make API calls.
+    isHydrated.value = true
   }
 
   // ---- Actions ----
@@ -182,6 +184,33 @@ export const useAuthStore = defineStore('auth', () => {
     _setUser(me.user)
   }
 
+  /** Lightweight token probe — call on app resume to immediately validate/refresh the token.
+   *  Returns true if the session is alive, false if tokens were cleared. */
+  async function ensureToken(): Promise<boolean> {
+    if (!access.value) return false
+    try {
+      await api.get<MeResponse>('/auth/me')
+      return true
+    } catch {
+      // http.ts already handles 401 → refresh → retry, and onAuthFailure if unrecoverable.
+      // If we end up here, either it was network error (tokens preserved) or auth cleared.
+      return !!access.value
+    }
+  }
+
+  /** Wait until hydrate() has fully completed (incl. /auth/me verification).
+   *  Use in page onShow to avoid firing API calls with stale/unvalidated tokens. */
+  function waitUntilReady(): Promise<void> {
+    if (isHydrated.value) return Promise.resolve()
+    return new Promise((resolve) => {
+      const check = () => {
+        if (isHydrated.value) { resolve(); return }
+        setTimeout(check, 50)
+      }
+      check()
+    })
+  }
+
   // ---- Install network bridge (§7.2) ----
   installTokenBridge({
     getAccess: () => access.value,
@@ -198,6 +227,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       _clear()
       // 被踢或 token 失效：回到主页（未登录态），不跳登录页
+      uni.showToast({ title: '登录已过期，请重新登录', icon: 'none', duration: 2500 })
       try {
         uni.reLaunch({ url: PAGE_HOME })
       } catch {
@@ -223,6 +253,8 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     changePassword,
     refreshMe,
+    ensureToken,
+    waitUntilReady,
     // page paths (for App.vue to read after hydrate)
     PAGE_LOGIN,
     PAGE_CHANGE_PWD,

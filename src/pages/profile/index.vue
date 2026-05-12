@@ -112,6 +112,7 @@ const chartData = computed<{ points: ChartPoint[]; startDate: string; endDate: s
 })
 
 onShow(async () => {
+  await auth.waitUntilReady()
   if (!requireAuth()) return
   try {
     await store.refresh()

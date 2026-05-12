@@ -23,10 +23,16 @@ onLaunch(async () => {
 })
 
 onShow(() => {
+  const auth = useAuthStore()
+
+  // 恢复时立即验证/刷新 token，避免后续 API 调用因 token 过期先 401 再重试
+  if (auth.isAuthenticated) {
+    auth.ensureToken().catch(() => { /* handled internally */ })
+  }
+
   // 全局心跳：每 5 分钟调 /auth/me 验证 session 有效性
   // 如果被踢（tokenVersion 不匹配），http.ts 自动触发 onAuthFailure → 弹回登录页
   // 注：每个 API 调用已自带 requireAuth 校验，心跳仅用于检测"无操作时被踢"的场景
-  const auth = useAuthStore()
   if (heartbeatTimer) clearInterval(heartbeatTimer)
   heartbeatTimer = setInterval(() => {
     if (auth.isAuthenticated) {

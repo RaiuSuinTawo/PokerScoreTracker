@@ -211,14 +211,7 @@ async function doLogin() {
 
 onShow(async () => {
   // Wait for hydrate to finish before loading data — avoids race with expired token refresh
-  if (!auth.isHydrated) {
-    // hydrate() is already running from App.vue onLaunch; wait for it
-    let waited = 0
-    while (!auth.isHydrated && waited < 3000) {
-      await new Promise((r) => setTimeout(r, 50))
-      waited += 50
-    }
-  }
+  await auth.waitUntilReady()
   if (!auth.isAuthenticated) return
   try {
     await store.refresh()

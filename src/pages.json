@@ -54,6 +54,14 @@
         "navigationBarBackgroundColor": "#f5f5f5",
         "navigationBarTextStyle": "black"
       }
+    },
+    {
+      "path": "pages/ledger-presets/index",
+      "style": {
+        "navigationBarTitleText": "账本预设",
+        "navigationBarBackgroundColor": "#f5f5f5",
+        "navigationBarTextStyle": "black"
+      }
     }
   ],
   "globalStyle": {

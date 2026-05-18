@@ -184,3 +184,14 @@ export interface BankrollPoint {
   perLedgerNet: number
   cumulative: number
 }
+
+// ---- Ledger Presets ----
+export interface LedgerPresetDTO {
+  id: string
+  name: string
+  title: string
+  chipValue: number
+  chipMultiplier: number
+  autoApprove: boolean
+  createdAt: string
+}

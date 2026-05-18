@@ -35,8 +35,14 @@ export const useLedgerListStore = defineStore('ledgerList', () => {
     }
   }
 
-  async function create(title: string): Promise<LedgerFull> {
-    const res = await api.post<LedgerResponse>('/ledgers', { title })
+  async function create(opts: string | {
+    title: string
+    chipValue?: number
+    chipMultiplier?: number
+    autoApprove?: boolean
+  }): Promise<LedgerFull> {
+    const data = typeof opts === 'string' ? { title: opts } : opts
+    const res = await api.post<LedgerResponse>('/ledgers', data)
     await refresh()
     return res.ledger
   }

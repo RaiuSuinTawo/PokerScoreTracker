@@ -17,6 +17,8 @@ import { eventRoutes } from './routes/events.js'
 import { settlementRoutes } from './routes/settlement.js'
 import { buyInRequestRoutes } from './routes/buyInRequests.js'
 import { profileRoutes } from './routes/profile.js'
+import { ledgerPresetRoutes } from './routes/ledgerPresets.js'
+import { connectDB, pingDB, startKeepAlive } from './db.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const HOST = process.env.HOST ?? '0.0.0.0'
@@ -48,7 +50,10 @@ export async function buildServer() {
     credentials: false,
   })
 
-  app.get('/api/health', async () => ({ ok: true, time: new Date().toISOString() }))
+  app.get('/api/health', async () => {
+    const dbOk = await pingDB()
+    return { ok: dbOk, time: new Date().toISOString() }
+  })
 
   await app.register(
     async (scope) => {
@@ -60,6 +65,7 @@ export async function buildServer() {
       await scope.register(settlementRoutes)
       await scope.register(buyInRequestRoutes)
       await scope.register(profileRoutes)
+      await scope.register(ledgerPresetRoutes)
     },
     { prefix: '/api' },
   )
@@ -98,6 +104,11 @@ export async function buildServer() {
 
 async function main() {
   try {
+    // Warm the DB connection pool before accepting traffic
+    await connectDB()
+    // Keep connections alive to prevent MySQL wait_timeout from killing them
+    startKeepAlive(60_000) // ping every 60s
+
     const app = await buildServer()
     await app.listen({ port: PORT, host: HOST })
     app.log.info({ port: PORT, host: HOST }, 'holdem server listening')

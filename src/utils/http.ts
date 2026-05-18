@@ -57,6 +57,8 @@ export interface RequestOpts {
   skipAuth?: boolean
   /** Skip the auto 401 → refresh → retry → redirect flow. For login/refresh themselves. */
   skipAuthHandling?: boolean
+  /** @internal — used to prevent infinite retry loops on 500 errors */
+  _retryCount?: number
 }
 
 /* ------------------------------------------------------------------
@@ -262,6 +264,13 @@ export async function request<T = unknown>(path: string, opts: RequestOpts = {})
   }
 
   if (status >= 500) {
+    // Auto-retry once on 500 — handles transient DB connection pool errors
+    const retryCount = opts._retryCount ?? 0
+    if (retryCount < 1) {
+      // Small delay before retry to allow server pool to recover
+      await new Promise((r) => setTimeout(r, 500))
+      return request<T>(path, { ...opts, _retryCount: retryCount + 1 })
+    }
     uni.showToast({
       title: apiErr.errorId ? `服务器错误 [${apiErr.errorId.slice(0, 6)}]` : '服务器错误',
       icon: 'none',

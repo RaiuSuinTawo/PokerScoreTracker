@@ -25,6 +25,7 @@ model User {
 
   memberships   Membership[]
   refreshTokens RefreshToken[]
+  ledgerPresets LedgerPreset[]
 }
 
 model Ledger {
@@ -130,6 +131,22 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model LedgerPreset {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  title          String   @default("")
+  chipValue      Float    @default(200)
+  chipMultiplier Float    @default(1)
+  autoApprove    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

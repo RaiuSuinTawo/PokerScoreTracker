@@ -7,6 +7,7 @@
         <text v-else class="subtitle not-logged-in">未登录</text>
       </view>
       <view class="topbar-actions" v-if="auth.isAuthenticated">
+        <button class="logout-btn" size="mini" @click="guardAction(goPresets)">预设</button>
         <button class="logout-btn" size="mini" @click="guardAction(goProfile)">我的</button>
         <button class="logout-btn" size="mini" @click="handleLogout">退出</button>
       </view>
@@ -78,6 +79,24 @@
     <view v-if="showCreate" class="modal-mask" @tap="closeCreate">
       <view class="modal-card" @tap.stop>
         <text class="modal-title">创建账本</text>
+
+        <!-- Preset selection chips -->
+        <view v-if="presetStore.presets.length" class="preset-chips">
+          <scroll-view scroll-x class="preset-scroll">
+            <view class="preset-chip-row">
+              <view
+                v-for="p in presetStore.presets"
+                :key="p.id"
+                class="preset-chip"
+                :class="{ active: selectedPresetId === p.id }"
+                @click="selectPreset(selectedPresetId === p.id ? null : p)"
+              >
+                {{ p.name }}
+              </view>
+            </view>
+          </scroll-view>
+        </view>
+
         <view class="field">
           <text class="label">账本名称</text>
           <input
@@ -88,6 +107,14 @@
             :disabled="submitting"
           />
         </view>
+
+        <!-- Show preset config summary when a preset is selected -->
+        <view v-if="selectedPresetId" class="preset-summary">
+          <text class="preset-summary-text">
+            面值 {{ createChipValue }} · 倍率 ×{{ createChipMultiplier }} · {{ createAutoApprove ? '自动通过' : '需审批' }}
+          </text>
+        </view>
+
         <view v-if="createError" class="error">{{ createError }}</view>
         <view class="actions">
           <button class="btn-secondary" :disabled="submitting" @click="closeCreate">取消</button>
@@ -146,12 +173,14 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/authStore'
 import { useLedgerListStore } from '@/stores/ledgerListStore'
+import { usePresetStore } from '@/stores/presetStore'
 import { ApiError } from '@/utils/http'
-import type { LedgerSummary } from '@/api/types'
+import type { LedgerSummary, LedgerPresetDTO } from '@/api/types'
 import LedgerCard from '@/components/LedgerCard.vue'
 
 const auth = useAuthStore()
 const store = useLedgerListStore()
+const presetStore = usePresetStore()
 const user = computed(() => auth.user)
 
 const currentTab = ref<'active' | 'archived'>('active')
@@ -165,6 +194,10 @@ const submitting = ref(false)
 
 const createTitle = ref('')
 const createError = ref('')
+const createChipValue = ref<number | undefined>(undefined)
+const createChipMultiplier = ref<number | undefined>(undefined)
+const createAutoApprove = ref<boolean | undefined>(undefined)
+const selectedPresetId = ref<string | null>(null)
 const joinSerial = ref('')
 const joinError = ref('')
 
@@ -214,7 +247,7 @@ onShow(async () => {
   await auth.waitUntilReady()
   if (!auth.isAuthenticated) return
   try {
-    await store.refresh()
+    await Promise.all([store.refresh(), presetStore.load()])
   } catch {
     /* toast handled by http.ts */
   }
@@ -229,10 +262,32 @@ async function handleLogout() {
 function goProfile() {
   uni.navigateTo({ url: '/pages/profile/index' })
 }
+function goPresets() {
+  uni.navigateTo({ url: '/pages/ledger-presets/index' })
+}
+
+function selectPreset(preset: LedgerPresetDTO | null) {
+  if (!preset) {
+    selectedPresetId.value = null
+    createChipValue.value = undefined
+    createChipMultiplier.value = undefined
+    createAutoApprove.value = undefined
+    return
+  }
+  selectedPresetId.value = preset.id
+  if (preset.title) createTitle.value = preset.title
+  createChipValue.value = preset.chipValue
+  createChipMultiplier.value = preset.chipMultiplier
+  createAutoApprove.value = preset.autoApprove
+}
 
 function openCreate() {
   createTitle.value = ''
   createError.value = ''
+  selectedPresetId.value = null
+  createChipValue.value = undefined
+  createChipMultiplier.value = undefined
+  createAutoApprove.value = undefined
   showCreate.value = true
 }
 function closeCreate() {
@@ -245,7 +300,11 @@ async function doCreate() {
   submitting.value = true
   createError.value = ''
   try {
-    const ledger = await store.create(title)
+    const opts: { title: string; chipValue?: number; chipMultiplier?: number; autoApprove?: boolean } = { title }
+    if (createChipValue.value !== undefined) opts.chipValue = createChipValue.value
+    if (createChipMultiplier.value !== undefined) opts.chipMultiplier = createChipMultiplier.value
+    if (createAutoApprove.value !== undefined) opts.autoApprove = createAutoApprove.value
+    const ledger = await store.create(opts)
     showCreate.value = false
     uni.showToast({ title: `已创建（${ledger.serial}）`, icon: 'none', duration: 1800 })
   } catch (err) {
@@ -521,5 +580,41 @@ function openLedger(l: LedgerSummary) {
 }
 .btn-danger-solid[disabled] {
   background: #f4a7a4;
+}
+
+/* Preset chips in create modal */
+.preset-chips {
+  margin-bottom: 24rpx;
+}
+.preset-scroll {
+  white-space: nowrap;
+}
+.preset-chip-row {
+  display: inline-flex;
+  gap: 12rpx;
+  padding: 4rpx 0;
+}
+.preset-chip {
+  display: inline-block;
+  padding: 10rpx 24rpx;
+  font-size: 24rpx;
+  border-radius: 24rpx;
+  background: #f0f0f0;
+  color: #555;
+  white-space: nowrap;
+}
+.preset-chip.active {
+  background: #1a73e8;
+  color: #fff;
+}
+.preset-summary {
+  margin-bottom: 16rpx;
+  padding: 12rpx 16rpx;
+  background: #f8f9fa;
+  border-radius: 8rpx;
+}
+.preset-summary-text {
+  font-size: 24rpx;
+  color: #666;
 }
 </style>

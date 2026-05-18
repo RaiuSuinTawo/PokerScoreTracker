@@ -39,7 +39,7 @@ services:
     env_file:
       - ../server/.env
     environment:
-      - DATABASE_URL=mysql://holdem:holdem_pass@mysql:3306/holdem
+      - DATABASE_URL=mysql://holdem:holdem_pass@mysql:3306/holdem?connection_limit=5&connect_timeout=10&pool_timeout=10&socket_timeout=30
       - HOST=0.0.0.0
       - PORT=3000
     ports:

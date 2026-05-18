@@ -17,6 +17,9 @@ import { LedgerEventType, LedgerStatus, Role } from '../types.js'
 
 const createBody = z.object({
   title: z.string().trim().min(1).max(60),
+  chipValue: z.number().positive().max(1_000_000).optional(),
+  chipMultiplier: z.number().positive().max(1_000).optional(),
+  autoApprove: z.boolean().optional(),
 })
 
 const joinBody = z.object({
@@ -169,14 +172,17 @@ export async function ledgerRoutes(app: FastifyInstance) {
     const serial = await generateUniqueSerial()
 
     const ledger = await prisma.$transaction(async (tx) => {
-      const l = await tx.ledger.create({
-        data: {
-          title: parsed.data.title,
-          serial,
-          createdById: userId,
-          status: LedgerStatus.ACTIVE,
-        },
-      })
+      const createData: any = {
+        title: parsed.data.title,
+        serial,
+        createdById: userId,
+        status: LedgerStatus.ACTIVE,
+      }
+      if (parsed.data.chipValue !== undefined) createData.chipValue = parsed.data.chipValue
+      if (parsed.data.chipMultiplier !== undefined) createData.chipMultiplier = parsed.data.chipMultiplier
+      if (parsed.data.autoApprove !== undefined) createData.autoApprove = parsed.data.autoApprove
+
+      const l = await tx.ledger.create({ data: createData })
       const player = await tx.player.create({
         data: {
           ledgerId: l.id,
